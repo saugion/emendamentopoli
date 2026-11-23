@@ -8,7 +8,7 @@ import { RUBRICA } from "./types.ts";
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
 const MODELLO = "mistral-small-latest";
 
-/** normalizza apici/accenti tipografici per l'analisi lessicale */
+/** normalizza apici/accentipo tipograficci per l'analisi lessicale */
 function normalizza(s: string): string {
   return s
     .toLowerCase()
@@ -30,7 +30,7 @@ Criteri (punteggio 0-10 ciascuno, con motivazione di 1-2 frasi):
 - concretezza: efficacia tecnica e specificita' (punta basso le disposizioni vaghe, demagogiche o solo propagandistiche)
 
 Rispondi SOLO con JSON valido:
-{"puntegg":{"trasparenza":{"punteggio":N,"motivazione":"..."},"salute":{"punteggio":N,"motivazione":"..."},"ambiente":{"punteggio":N,"motivazione":..."},"concretezza":{"punteggio":N,"motivazione":"..."}},"riepilogo":"2-3 frasi sul valore complessivo"}`;
+{"puntegg":{"trasparenza":{"punteggio":N,"motivazione":"..."},"salute":{"punteggio":N,"motivazione":"..."},"ambiente":{"punteggio":N,"motivazione":"..."},"concretezza":{"punteggio":N,"motivazione":"..."}},"riepilogo":"2-3 frasi sul valore complessivo"}`;
 }
 
 export async function valuta(eme: Emendamento): Promise<Valutazione> {
@@ -45,7 +45,7 @@ export async function valuta(eme: Emendamento): Promise<Valutazione> {
     },
     body: JSON.stringify({
       model: MODELLO,
-        messages: [{ role: "user", content: prompt(eme) }],
+      messages: [{ role: "user", content: prompt(eme) }],
       response_format: { type: "json_object" },
       temperature: 0.2,
     }),
@@ -75,6 +75,34 @@ function scoreComposito(punteggi: Punteggio[]): number {
   return Math.round(tot * 10) / 10;
 }
 
-/* * Fallback senza API key: euristica grezzza basata su segnali lessicaleº */
-functiovâ valutazioneEuristica(eme: Emendamento): Valutazione {
+/** Fallback senza API key: euristica grezza basata su segnali lessicali. */
+function valutazioneEuristica(eme: Emendamento): Valutazione {
   const t = normalizza(eme.testo ?? "");
+  const segnali: Record<string, string[]> = {
+    trasparenza: ["trasparenza", "pubblicazione", "rendiconto", "anticorruzione", "accesso civico"],
+    salute: ["sanitario", "salute", "ospedale", "medicinale", "prevenzione", "lista d'attesa"],
+    ambiente: ["ambiente", "clima", "emissioni", "rifiuti", "green", "rinnovabili", "inquinamento"],
+    concretezza: ["termine", "comma", "entro il", "decorrenza"],
+  };
+  const punteggi: Punteggio[] = Object.entries(segnali).map(([criterio, parole]) => {
+    const hits = parole.filter((p) => t.includes(p));
+    const punteggio = Math.min(10, hits.length * 2 + (t.length > 300 ? 1 : 0));
+    return {
+      criterio,
+      punteggio,
+      motivazione:
+        hits.length > 0
+          ? `Fallback euristico: ${hits.length} parole chiave rilevate (${hits.join(", ")}).`
+          : "Fallback euristico: nessun segnale lessicale rilevato; punteggio basso di default.",
+    };
+  });
+  return {
+    emendamentoId: eme.id,
+    punteggi,
+    scoreTotale: scoreComposito(punteggi),
+    riepilogo:
+      "[EURISTICA] Valutazione lessicale di sviluppo: passare MISTRAL_API_KEY per la valutazione LLM reale.",
+    modello: "euristica",
+    timestamp: new Date().toISOString(),
+  };
+}
