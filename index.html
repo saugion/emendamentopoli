@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emendamentopoli</title>
+<style>
+  :root { --bg:#0f1115; --card:#171a21; --text:#e8e8ec; --muted:#9aa0ac; --acc:#6ea8fe; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:32px 20px 8px; max-width:960px; margin:0 auto; }
+  h1 { margin:0 0 4px; font-size:28px; }
+  h1 span { color:var(--acc); }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:24px; }
+  main { max-width:960px; margin:0 auto; padding:0 20px 60px; }
+  .card { background:var(--card); border:1px solid #232833; border-radius:12px; padding:16px 18px; margin-bottom:14px; }
+  .card .row1 { display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap; }
+  .card .titolo { font-weight:600; }
+  .card .meta { color:var(--muted); font-size:13px; margin-top:2px; }
+  .score { font-size:22px; font-weight:700; color:var(--acc); white-space:nowrap; }
+  .bar { height:6px; background:#232833; border-radius:3px; margin-top:10px; overflow:hidden; }
+  .bar > div { height:100%; border-radius:3px; background:linear-gradient(90deg,#e05252,#e0a52f,#63c07a); }
+  .criteri { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .chip { font-size:12px; border:1px solid #2a3140; color:var(--muted); border-radius:999px; padding:3px 10px; }
+  .riepilogo { margin-top:10px; font-size:14px; color:#c6cad3; }
+  .msg { padding:24px; text-align:center; color:var(--muted); border:1px dashed #2a3140; border-radius:12px; }
+  a { color:var(--acc); }
+  footer { text-align:center; color:var(--muted); font-size:12px; padding:20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Emendamento<span>poli</span></h1>
+  <div class="sub">Valutazione IA dell'utilit&agrave; pubblica degli emendamenti parlamentari (Senato, leg. XIX) - prototipo</div>
+</header>
+<main>
+  <div id="stato" class="msg">Carico le valutazioni...</div>
+  <div id="lista"></div>
+</main>
+<footer>
+  Dati: <a href="https://dati.senato.it" rel="noopener">Senato della Repubblica - dati.senato.it</a> (CC BY 3.0).
+  Score algoritmici di supporto, non giudizi istituzionali.
+  <a href="https://github.com/saugion/emendamentopoli" rel="noopener">Codice</a>.
+</footer>
+<script>
+  var SUPABASE_URL = "https://xhhwhtfwqfbrpbjicsoi.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_FFWWImZ3CsmCchSp-U0GVA_YjK9kvss";
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  async function carica() {
+    var stato = document.getElementById("stato");
+    var lista = document.getElementById("lista");
+    var url = SUPABASE_URL + "/rest/v1/valutazioni"
+      + "?select=score_totale,riepilogo,modello,punteggi(criterio,punteggio),emendamenti(numero,tipo,ddl,data,testo,url_testo)"
+      + "&order=score_totale.desc&limit=50";
+    try {
+      var res = await fetch(url, {
+        headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY }
+      });
+      var body = await res.text();
+      if (!res.ok) throw new Error("HTTP " + res.status + " " + body.slice(0, 200));
+      var dati = JSON.parse(body);
+      if (!dati.length) {
+        stato.textContent = "Nessuna valutazione presente. Esegui la pipeline (npm run demo -- --limit N)con SUPABASE_URL e SUPABASE_KEY impostate per popolare il database.";
+        return;
+      }
+      stato.style.display = "none";
+      dati.forEach(function (v) {
+        var e = v.emendamenti || {};
+        var tipo = e.tipo === "G" ? "O.d.G. " : "Emendamento ";
+        var d = document.createElement("div");
+        d.className = "card";
+        d.innerHTML =
+          '<div class="row1"><div><div class="titolo">' + esc(tipo + (e.numero || "?")) +
+          (e.ddl ? " - " + esc(e.ddl) : "") + '</div>' +
+          '<div class="meta">' + esc(e.data || "n/d") + " - modello: " + esc(v.modello) + '</div></div>' +
+          '<div class="score">' + Number(v.score_totale).toFixed(1) + "/10</div></div>" +
+          '<div class="bar"><div style="width:' + Math.max(2, Math.min(100, v.score_totale * 10)) + '%"></div></div>' +
+          '<div class="criteri">' + (v.punteggi || []).map(function (p) {
+            return '<span class="chip">' + esc(p.criterio) + ": " + Number(p.punteggio).toFixed(0) + "/10</span>";
+          }).join("") + "</div>" +
+          '<div class="riepilogo">' + esc(v.riepilogo) + "</div>";
+        lista.appendChild(d);
+      });
+    } catch (err) {
+      stato.innerHTML = "Errore nel caricamento dei dati:<br><code>" + esc(err.message) + "</code><br>Verifica che la migration Supabase sia stata eseguita.";
+    }
+  }
+  carica();
+</script>
+</body>
+</html>
