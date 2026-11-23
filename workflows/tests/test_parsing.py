@@ -25,7 +25,7 @@ XML_AKN = """<?xml version="1.0" encoding="iso-8859-1"?>
 def test_query_ordina_per_id_decrescente_e_limita():
     q = query_metadati_recenti(19, 500)
     assert "osr:legislatura 19" in q
-    assert 'ORDER BY DESC(xsd:integer(STRAFTER(STR(?eme), "emendamento/")))' in q
+    assert "ORDER BY DESC(?eme)" in q
     assert "LIMIT 500" in q
 
 
