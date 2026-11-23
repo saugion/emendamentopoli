@@ -74,7 +74,8 @@ def query_metadati_recenti(legislatura: int, limite: int) -> str:
         "       osr:URLTesto ?urlTesto ;\n"
         "       osr:URLTestoXml ?urlTestoXml .\n"
         "}\n"
-        'ORDER BY DESC(xsd:integer(STRAFTER(STR(?eme), "emendamento/")))\n'
+        # id a 7 cifre in legislatura XIX: l'ordine lessicografico DESC e' anche numerico DESC
+        "ORDER BY DESC(?eme)\n"
         f"LIMIT {limite}"
     )
 
@@ -158,9 +159,10 @@ async def scarica_metadati_recenti(legislatura: int, limite: int) -> list[Emenda
         headers={"Accept": "application/sparql-results+json", "User-Agent": UA},
     ) as client:
         resp = await client.get(url)
-        resp.raise_for_status()
+        if not resp.is_success:
+            raise RuntimeError(f"SPARQL {resp.status_code}: {resp.text[:500]}")
         bindings = resp.json()["results"]["bindings"]
-    return [
+    emendamenti = [
         Emendamento(
             id=b["eme"]["value"],
             legislatura=legislatura,
@@ -173,6 +175,8 @@ async def scarica_metadati_recenti(legislatura: int, limite: int) -> list[Emenda
         )
         for b in bindings
     ]
+    emendamenti.sort(key=lambda e: int(e.id.rsplit("/", 1)[-1]), reverse=True)
+    return emendamenti
 
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=60), retry_policy_max_attempts=3)
