@@ -52,8 +52,8 @@ drop policy if exists "public read punteggi" on punteggi;
 drop policy if exists "public write punteggi" on punteggi;
 
 create policy "public read emendamenti" on emendamenti for select using (true);
-create policy "public write emendamenti" on emendamenti for all with check (true);
+create policy "public write emendamenti" on emendamenti for all using (true) with check (true);
 create policy "public read valutazioni" on valutazioni for select using (true);
-create policy "public write valutazioni" on valutazioni for all with check (true);
+create policy "public write valutazioni" on valutazioni for all using (true) with check (true);
 create policy "public read punteggi" on punteggi for select using (true);
-create policy "public write punteggi" on punteggi for all with check (true);
+create policy "public write punteggi" on punteggi for all using (true) with check (true);

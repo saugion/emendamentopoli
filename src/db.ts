@@ -35,7 +35,8 @@ async function rest(
     }
     throw new Error(`Supabase ${res.status} su ${path}: ${detail}`);
   }
-  return res.status === 204 ? null : res.json();
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
 /** Salva (upsert) gli emendamenti e le relative valutazioni. */
