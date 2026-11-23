@@ -8,7 +8,7 @@ import { RUBRICA } from "./types.ts";
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
 const MODELLO = "mistral-small-latest";
 
-/** normalizza apici/accentipo tipograficci per l'analisi lessicale */
+/** normalizza apici/accenti tipografici per l'analisi lessicale */
 function normalizza(s: string): string {
   return s
     .toLowerCase()
@@ -30,7 +30,7 @@ Criteri (punteggio 0-10 ciascuno, con motivazione di 1-2 frasi):
 - concretezza: efficacia tecnica e specificita' (punta basso le disposizioni vaghe, demagogiche o solo propagandistiche)
 
 Rispondi SOLO con JSON valido:
-{"puntegg":{"trasparenza":{"punteggio":N,"motivazione":"..."},"salute":{"punteggio":N,"motivazione":"..."},"ambiente":{"punteggio":N,"motivazione":"..."},"concretezza":{"punteggio":N,"motivazione":"..."}},"riepilogo":"2-3 frasi sul valore complessivo"}`;
+{"punteggi":{"trasparenza":{"punteggio":N,"motivazione":"..."},"salute":{"punteggio":N,"motivazione":"..."},"ambiente":{"punteggio":N,"motivazione":"..."},"concretezza":{"punteggio":N,"motivazione":"..."}},"riepilogo":"2-3 frasi sul valore complessivo"}`;
 }
 
 export async function valuta(eme: Emendamento): Promise<Valutazione> {

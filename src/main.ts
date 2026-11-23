@@ -1,40 +1,49 @@
-// Demo: scarica emendamenta dal Senato, li ordine cronologicamente
+// Demo: scarica emendamenti dal Senato, li ordina cronologicamente
 // e li valuta con la rubrica di interesse pubblico.
 //
 // Uso:
 //   MISTRAL_API_KEY=... npm run demo -- --limit 5
-//  node --experimental-strip-types src/main.ts --limit 5 --offset 50
+//   node --experimental-strip-types src/main.ts --limit 5 --offset 50
 
-import { fetchEmendamenti, arricchisciConTestÈHÛHÜÙ[]ËÈÂ[\ÜÈ[]HHÛHÙ][X]KÈÂ[\Ü\HÈ[Y[[Y[ÈHÛHÝ\\ËÈÂÛÛÝ\ÜÈHØÙ\ÜË\ÝÛXÙJNÂÛÛÝ[Z]YH\ÜË[^ÙK[[Z]NÂÛÛÝ[Z]H[Z]YHÈ\ÙR[
-\ÜÖÛ[Z]Y
-ÈWHÏÈHL
-HNÂÛÛÝÙÙ]YH\ÜË[^ÙK[ÙÙ]NÂÛÛÝÙÙ]HÙÙ]YHÈ\ÙU[
-\ÜÖÛÙÙ]Y
-ÈWHÏÈL
-HÂ\Þ[È[Ý[ÛXZ[
-HÂÛÛÛÛKÙÊ8¡¤ØØ\XÛÈY]Y]HH	Û[Z]H[Y[[Y[H
-Ù[]ËYËV
-K
-NÂÛÛÝ\ÙHH]ØZ]]Ú[Y[[Y[JNK[Z]ÙÙ]
-NÂÛÛÛÛKÙÊ¸¡¤XÝ\\È\ÝHZÛÛXHÜÛËNÂÛÛÝ\XØÚ]HH
-]ØZ]ÛZ\ÙK[Ù]Y
-\ÙKX\
-\XØÚ\ØÚPÛÛ\ÝÊJJB[\
-N\ÈÛZ\ÙQ[[Y\Ý[[Y[[Y[ÏOÝ]\ÈOOH[[YB¢pX\
+import { fetchEmendamenti, arricchisciConTesto } from "./senato.ts";
+import { valuta } from "./evaluate.ts";
+import type { Emendamento } from "./types.ts";
 
-HO[YJNÂËÈÜ[[Y[ÈÜÛÛÙÚXÛÈ
-]HH\Ù[^[ÛJB\XØÚ]KÛÜ
+const args = process.argv.slice(2);
+const limitIdx = args.indexOf("--limit");
+const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1] ?? "5", 10) : 5;
+const offsetIdx = args.indexOf("--offset");
+const offset = offsetIdx >= 0 ? parseInt(args[offsetIdx + 1] ?? "0", 10) : 0;
 
-KHO
-K]HÏÈKØØ[PÛÛ\\J]HÏÈJNÂÛÛÛÛKÙÊ8¡¤[]È	Ø\XØÚ]K[ÝH[Y[[Y[K
-NÂÜ
-ÛÛÝ[YHÙ\XØÚ]JHÂÛÛÝH]ØZ][]J[YJNÂÛÛÛÛKÙÊ¸¥ x¥ x¤ÐH	Ù[YKoÈOOHÈÈËË[Y[[Y[ÈH	Ù[YK[Y\ßH8 %	Ù[YKÏÈÈH8 %	Ù[YK]HÏÈÙH
-	Ù[YKÙYPÛÛ[Z\ÜÚ[ÛHÈÛÛ[Z\ÜÚ[ÛH\ÜÙ[XXHJX
-NÂÛÛÛÛKÙÊØÛÜHÝ[N	ÝØÛÜUÝ[_KÌL
-[Ù[Î	Ý[Ù[ßJX
-NÂÜ
-ÛÛÝÙ[YÙÚJHÂÛÛÛÛKÙÊ8 (	ÜÜ]\[ßN	Ü[YÙÚ[ßKÌL8 %	Ü[Ý]^[Û_X
-NÂBÛÛÛÛKÙÊY\[ÙÛÎ	ÝY\[ÙÛßX
-NÂÛÛÛÛKÙÊ\ÝÎ	Ê[YK\ÝÈÏÈKÛXÙJ
-_IÙ[YK\ÝÈÏÈK[ÝÈX
-NÂÛÛÛÛKÖrföçFS¢G¶VÖRçW&ÅFW7F÷Ö°¢Ð§Ð ¦Öâæ6F6RÓâ°¢6öç6öÆRæW'&÷"$W'&÷&S¢"ÂRæÖW76vR°¢&ö6W72æWB°§Ò° 
+async function main() {
+  console.log(`â Scarico metadati di ${limit} emendamenti (Senato, leg. XIX)...`);
+  const base = await fetchEmendamenti(19, limit, offset);
+
+  console.log("â Recupero testi Akoma Ntoso...");
+  const arricchiti = (await Promise.allSettled(base.map(arricchisciConTesto)))
+    .filter((r): r is PromiseFulfilledResult<Emendamento> => r.status === "fulfilled")
+    .map((r) => r.value);
+
+  // ordinamento cronologico (data di presentazione)
+  arricchiti.sort((a, b) => (a.data ?? "").localeCompare(b.data ?? ""));
+
+  console.log(`â Valuto ${arricchiti.length} emendamenti...`);
+  for (const eme of arricchiti) {
+    const v = await valuta(eme);
+    console.log(
+      `\nâââ ${eme.tipo === "G" ? "O.d.G." : "Emendamento"} ${eme.numero} â ${eme.ddl ?? "?"} â ${eme.data ?? "n/d"} (${eme.sedeCommissione ? "Commissione" : "Assemblea"})`,
+    );
+    console.log(`    Score totale: ${v.scoreTotale}/10 (modello: ${v.modello})`);
+    for (const p of v.punteggi) {
+      console.log(`    â¢ ${p.criterio}: ${p.punteggio}/10 â ${p.motivazione}`);
+    }
+    console.log(`    Riepilogo: ${v.riepilogo}`);
+    console.log(`    Testo: ${(eme.testo ?? "").slice(0, 280)}${(eme.testo ?? "").length > 280 ? "..." : ""}`);
+    console.log(`    Fonte: ${eme.urlTesto}`);
+  }
+}
+
+main().catch((e) => {
+  console.error("Errore:", e.message);
+  process.exit(1);
+});
