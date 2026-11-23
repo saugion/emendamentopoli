@@ -16,10 +16,10 @@ const offsetIdx = args.indexOf("--offset");
 const offset = offsetIdx >= 0 ? parseInt(args[offsetIdx + 1] ?? "0", 10) : 0;
 
 async function main() {
-  console.log(`â Scarico metadati di ${limit} emendamenti (Senato, leg. XIX)...`);
+  console.log(`\u2192 Scarico metadati di ${limit} emendamenti (Senato, leg. XIX)...`);
   const base = await fetchEmendamenti(19, limit, offset);
 
-  console.log("â Recupero testi Akoma Ntoso...");
+  console.log("\u2192 Recupero testi Akoma Ntoso...");
   const arricchiti = (await Promise.allSettled(base.map(arricchisciConTesto)))
     .filter((r): r is PromiseFulfilledResult<Emendamento> => r.status === "fulfilled")
     .map((r) => r.value);
@@ -27,15 +27,15 @@ async function main() {
   // ordinamento cronologico (data di presentazione)
   arricchiti.sort((a, b) => (a.data ?? "").localeCompare(b.data ?? ""));
 
-  console.log(`â Valuto ${arricchiti.length} emendamenti...`);
+  console.log(`\u2192 Valuto ${arricchiti.length} emendamenti...`);
   for (const eme of arricchiti) {
     const v = await valuta(eme);
     console.log(
-      `\nâââ ${eme.tipo === "G" ? "O.d.G." : "Emendamento"} ${eme.numero} â ${eme.ddl ?? "?"} â ${eme.data ?? "n/d"} (${eme.sedeCommissione ? "Commissione" : "Assemblea"})`,
+      `\n\u2501\u2501\u2501 ${eme.tipo === "G" ? "O.d.G." : "Emendamento"} ${eme.numero} \u2014 ${eme.ddl ?? "?"} \u2014 ${eme.data ?? "n/d"} (${eme.sedeCommissione ? "Commissione" : "Assemblea"})`,
     );
     console.log(`    Score totale: ${v.scoreTotale}/10 (modello: ${v.modello})`);
     for (const p of v.punteggi) {
-      console.log(`    â¢ ${p.criterio}: ${p.punteggio}/10 â ${p.motivazione}`);
+      console.log(`    \u2022 ${p.criterio}: ${p.punteggio}/10 \u2014 ${p.motivazione}`);
     }
     console.log(`    Riepilogo: ${v.riepilogo}`);
     console.log(`    Testo: ${(eme.testo ?? "").slice(0, 280)}${(eme.testo ?? "").length > 280 ? "..." : ""}`);
