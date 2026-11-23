@@ -1,6 +1,6 @@
 # emendamentopoli
 
-Valutazione IA dell'utilitÃ  pubblica degli emendamenti parlamentari italiani.
+Valutazione IA dell'utilita' pubblica degli emendamenti parlamentari italiani.
 
 **Stato**: prototipo (solo Senato; Camera in roadmap).
 
@@ -12,41 +12,62 @@ Valutazione IA dell'utilitÃ  pubblica degli emendamenti parlamentari italiani.
    e ne estrae data di presentazione, atto di riferimento e testo plain-text.
 3. **Valutazione**: un LLM (Mistral) valuta ogni emendamento su una rubrica
    di interesse pubblico con punteggi 0-10 e motivazioni obbligatorie:
-   - trasparenza (peso 0.3) â trasparenza democratica, legalitÃ , accountability
-   - salute (0.25) â impatto su salute pubblica
-   - ambiente (0.25) â impatto su ambiente e clima
-   - concretezza (0.2) â efficacia tecnica, non genericitÃ 
+   - trasparenza (peso 0.3) - trasparenza democratica, legalita', accountability
+   - salute (0.25) - impatto su salute pubblica
+   - ambiente (0.25) - impatto su ambiente e clima
+   - concretezza (0.2) - efficacia tecnica, non genericita'
 4. **Score composito**: media pesata dei criteri.
+5. **Persistenza** (opzionale): salva emendamenti, valutazioni e punteggi su
+   Supabase via API REST.
 
-Senza `MISTRAL_API_KEY` gira in modalitÃ  euristica (lessicale), solo sviluppo.
+Senza `MISTRAL_API_KEY` gira in modalita' euristica (lessicale), solo sviluppo.
 
 ## Uso
 
 ```bash
 MISTRAL_API_KEY=... npm run demo -- --limit 10
 npm run demo -- --limit 10 --offset 50
+
+# con persistenza Supabase:
+SUPABASE_URL=https://<project>.supabase.co \
+SUPABASE_KEY=sb_publishable_... \
+npm run demo -- --limit 10
 ```
 
 Zero dipendenze runtime: richiede Node 22+ (TypeScript nativo).
 
+## Setup Supabase
+
+1. Crea un progetto su [supabase.com](https://supabase.com).
+2. Esegui `supabase/migrations/0001_schema.sql` nel SQL Editor
+   (oppure `npx supabase db push` con il repo collegato).
+3. Imposta le variabili d'ambiente `SUPABASE_URL` e `SUPABASE_KEY`
+   (publishable/anon key; vedi `.env.example`).
+
+Schema: `emendamenti` (upsert per id), `valutazioni` (una per valutazione),
+`punteggi` (dettaglio per criterio). RLS attivo con policy anonime per il
+prototipo: da raffinare prima di un uso reale in produzione.
+
 ## File
 
-- `src/types.ts` â tipi + rubrica e pesi
-- `src/senato.ts` â client SPARQL + parser Akoma Ntoso
-- `src/evaluate.ts` â valutazione LLM (con fallback euristico)
-- `src/main.ts` â CLI demo
+- `src/types.ts` - tipi + rubrica e pesi
+- `src/senato.ts` - client SPARQL + parser Akoma Ntoso
+- `src/evaluate.ts` - valutazione LLM (con fallback euristico)
+- `src/db.ts` - persistenza Supabase (API REST, zero dipendenze)
+- `src/main.ts` - CLI demo
+- `supabase/migrations/0001_schema.sql` - schema del database
 
 ## Roadmap
 
-- [ ] Persistenza (PostgreSQL) per evitare rivalutazioni
+- [x] Persistenza (Supabase/PostgreSQL)
 - [ ] Coda e rate limiting per i batch (BullMQ)
 - [ ] Ingestione Camera (scraping fascicoli; nessun dataset equivalente)
 - [ ] API REST pubblica (Fastify) + web app Next.js
-- [ ] Audit: campioni rivalutati con piÃ¹ modelli, feedback utenti
+- [ ] Audit: campioni rivalutati con piu' modelli, feedback utenti
 - [ ] Disclaimer e pesi pubblicati (mitigazione del bias politico)
 
 ## Note legali
 
-Dati Senato: CC BY 3.0, citare la fonte "Senato della Repubblica â dati.senato.it".
+Dati Senato: CC BY 3.0, citare la fonte "Senato della Repubblica - dati.senato.it".
 Gli score sono valutazioni algoritmiche di supporto, non giudizi istituzionali.
 Verificare i termini per lo scraping dei contenuti di camera.it prima di estendere.

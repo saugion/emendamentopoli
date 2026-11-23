@@ -31,8 +31,8 @@ export interface Valutazione {
 }
 
 export const RUBRICA: Record<string, number> = {
-  trasparenza: 0.3,   // trasparenza democratica e legalitÃ 
+  trasparenza: 0.3,   // trasparenza democratica e legalita'
   salute: 0.25,        // impatto su salute pubblica
   ambiente: 0.25,      // impatto su ambiente e clima
-  concretezza: 0.2,    // efficacia tecnica, non genericitÃ 
+  concretezza: 0.2,    // efficacia tecnica, non genericita'
 };
