@@ -25,3 +25,30 @@ def test_all_workflows_validate_in_sandbox():
             runner.prepare_workflow(defn)
 
     asyncio.run(run())
+
+
+def test_workflow_run_methods_avoid_nondeterministic_calls():
+    """The run method executes inside the sandbox: datetime.now/utcnow/today are
+    restricted there. Row building must happen inside activities instead."""
+    import ast
+    import inspect
+    import textwrap
+
+    classes = workflows.discover_all_workflows_in_package("amendments_worker.workflows")
+    assert classes
+    for cls in classes:
+        src = textwrap.dedent(inspect.getsource(cls.run))
+        tree = ast.parse(src)
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Attribute)
+                and isinstance(node.func.value.value, ast.Name)
+                and node.func.value.value.id == "datetime"
+                and node.func.value.attr == "datetime"
+                and node.func.attr in {"now", "utcnow", "today"}
+            ):
+                raise AssertionError(
+                    f"{cls.__name__}.run calls datetime.{node.func.attr}() in workflow code"
+                )

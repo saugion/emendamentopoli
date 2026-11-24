@@ -67,11 +67,23 @@ async def fetch_camera_atti_page(legislature: int, since: str) -> list[CameraAtt
     return parse_atti_bindings(resp.json()["results"]["bindings"])
 
 
+class AttiChunkResult(BaseModel):
+    saved: int
+    dl: int
+    bilancio: int
+    commissione_bilancio: int
+
+
 @workflows.activity(start_to_close_timeout=timedelta(seconds=600), retry_policy_max_attempts=2)
-async def process_atti_chunk(items: list[CameraAttoItem], legislature: int) -> int:
+async def process_atti_chunk(items: list[CameraAttoItem], legislature: int) -> AttiChunkResult:
     rows = [atti_row(i, legislature) for i in items]
     await db_save_atti(rows)
-    return len(rows)
+    return AttiChunkResult(
+        saved=len(rows),
+        dl=sum(r["is_dl_conversione"] for r in rows),
+        bilancio=sum(r["is_bilancio"] for r in rows),
+        commissione_bilancio=sum(r["is_commissione_bilancio_referente"] for r in rows),
+    )
 
 
 @workflows.workflow.define(
@@ -110,14 +122,13 @@ class CameraAttiWorkflow:
             for start in range(0, len(new), ATTI_CHUNK):
                 chunk = new[start : start + ATTI_CHUNK]
                 try:
-                    saved += await process_atti_chunk(chunk, input.legislature)
+                    res = await process_atti_chunk(chunk, input.legislature)
+                    saved += res.saved
+                    dl += res.dl
+                    bilancio += res.bilancio
+                    comm_bil += res.commissione_bilancio
                 except Exception as e:
                     errors.append(f"atti chunk: {type(e).__name__}: {e}")
-                for i in chunk:
-                    row = atti_row(i, input.legislature)
-                    dl += row["is_dl_conversione"]
-                    bilancio += row["is_bilancio"]
-                    comm_bil += row["is_commissione_bilancio_referente"]
             if len(page) < CAMERA_ATTI_PAGE:
                 break
             if not new:
