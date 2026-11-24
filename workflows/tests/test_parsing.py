@@ -1,10 +1,10 @@
-from emendamenti_worker.workflows.emendamenti_giornalieri import (
-    Emendamento,
-    estrai_data,
-    estrai_ddl,
-    estrai_testo,
-    query_metadati_recenti,
-    riga_supabase,
+from amendments_worker.workflows.daily_amendments import (
+    Amendment,
+    extract_date,
+    extract_bill,
+    extract_text,
+    query_recent_metadata,
+    supabase_row,
 )
 
 XML_AKN = """<?xml version="1.0" encoding="iso-8859-1"?>
@@ -22,47 +22,47 @@ XML_AKN = """<?xml version="1.0" encoding="iso-8859-1"?>
 """
 
 
-def test_query_ordina_per_id_decrescente_e_limita():
-    q = query_metadati_recenti(19, 500)
+def test_query_orders_by_id_desc_and_limits():
+    q = query_recent_metadata(19, 500)
     assert "osr:legislatura 19" in q
     assert "ORDER BY DESC(?eme)" in q
     assert "LIMIT 500" in q
 
 
-def test_estrai_data_ddl_testo():
-    assert estrai_data(XML_AKN) == "2026-01-10"
-    assert estrai_ddl(XML_AKN) == "Ddl 391"
-    testo = estrai_testo(XML_AKN)
-    assert testo is not None
-    assert "articolo 3 & si aggiunge il comma 2." in testo
-    assert "<" not in testo
+def test_extract_date_bill_text():
+    assert extract_date(XML_AKN) == "2026-01-10"
+    assert extract_bill(XML_AKN) == "Ddl 391"
+    text = extract_text(XML_AKN)
+    assert text is not None
+    assert "articolo 3 & si aggiunge il comma 2." in text
+    assert "<" not in text
 
 
-def test_estrai_campi_mancanti():
-    assert estrai_data("<an:bill/>") is None
-    assert estrai_ddl("<an:bill/>") is None
-    assert estrai_testo("<an:bill/>") is None
+def test_extract_missing_fields():
+    assert extract_date("<an:bill/>") is None
+    assert extract_bill("<an:bill/>") is None
+    assert extract_text("<an:bill/>") is None
 
 
-def test_riga_supabase():
-    e = Emendamento(
+def test_supabase_row():
+    a = Amendment(
         id="http://dati.senato.it/emendamento/1",
-        legislatura=19,
-        numero="1.30",
-        tipo="E",
-        sede_commissione=True,
-        atto_uri="http://dati.senato.it/osr/oggetto/1",
-        url_testo="http://www.senato.it/emend/1",
-        url_testo_xml="http://www.senato.it/emend/1.xml",
-        data="2026-01-10",
-        ddl="Ddl 391",
-        testo="testo",
+        legislature=19,
+        number="1.30",
+        type="E",
+        committee_seat=True,
+        act_uri="http://dati.senato.it/osr/oggetto/1",
+        text_url="http://www.senato.it/emend/1",
+        text_xml_url="http://www.senato.it/emend/1.xml",
+        date="2026-01-10",
+        bill="Ddl 391",
+        text="text",
     )
-    riga = riga_supabase(e)
-    assert riga["id"] == e.id
-    assert riga["sede_commissione"] is True
-    assert riga["data"] == "2026-01-10"
-    assert set(riga) == {
+    row = supabase_row(a)
+    assert row["id"] == a.id
+    assert row["sede_commissione"] is True
+    assert row["data"] == "2026-01-10"
+    assert set(row) == {
         "id",
         "legislatura",
         "numero",

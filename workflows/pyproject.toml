@@ -1,7 +1,7 @@
 [project]
-name = "emendamenti-worker"
+name = "amendments-worker"
 version = "0.1.0"
-description = "Worker Mistral Workflows per il download notturno degli emendamenti del Senato"
+description = "Mistral Workflows worker for the nightly download of Senate amendments"
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "mistralai-workflows[mistralai]>=3.17.1",
@@ -14,7 +14,7 @@ requires = ["uv_build>=0.8.22,<0.9.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-name = "emendamenti_worker"
+module-name = "amendments_worker"
 
 [tool.uv]
 required-environments = [

@@ -1,7 +1,7 @@
 {
   "name": "emendamentopoli",
   "version": "0.2.0",
-  "description": "Valutazione IA dell'utilita' pubblica degli emendamenti parlamentari (Senato + Camera)",
+  "description": "AI evaluation of the public interest of parliamentary amendments (Senate + Chamber of Deputies)",
   "type": "module",
   "scripts": {
     "demo": "node --experimental-strip-types src/main.ts"

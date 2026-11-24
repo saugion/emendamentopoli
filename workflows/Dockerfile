@@ -18,4 +18,4 @@ RUN groupadd -g 1000 app && useradd -u 1000 -g 1000 -m -s /usr/sbin/nologin app
 USER 1000:1000
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 --start-period=20s \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3001/health', timeout=5).status==200 else 1)"
-CMD ["python", "-m", "emendamenti_worker.entrypoint"]
+CMD ["python", "-m", "amendments_worker.entrypoint"]

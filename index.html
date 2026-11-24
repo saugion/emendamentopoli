@@ -18,7 +18,7 @@ try {
   --border: #e4e4e7; --border-2: #d4d4d8; --muted: #f4f4f5; --muted-fg: #71717a;
   --primary: #0095ff; --primary-soft: rgba(0, 149, 255, .12); --ring: #0095ff; --violet: #8b5cf6;
   --danger: #ca3214;
-  --c-trasparenza: #3b82f6; --c-salute: #10b981; --c-ambiente: #84cc16; --c-concretezza: #f59e0b;
+  --c-transparency: #3b82f6; --c-health: #10b981; --c-environment: #84cc16; --c-concreteness: #f59e0b;
   --radius: .625rem; --header-h: 60px;
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 10px 28px -14px rgba(0,0,0,.14);
   color-scheme: light;
@@ -134,7 +134,7 @@ h1 .grad { background: linear-gradient(100deg, var(--primary), var(--violet)); -
 .clearbtn:hover { color: var(--danger); }
 
 main { max-width: 1080px; margin: 0 auto; padding: 20px 20px 30px; }
-#lista { display: flex; flex-direction: column; gap: 12px; }
+#list { display: flex; flex-direction: column; gap: 12px; }
 .card { display: flex; gap: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 16px;
   padding: 16px 18px; cursor: pointer; animation: rise .45s cubic-bezier(.22,.9,.3,1) both;
   transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background-color .25s ease; }
@@ -151,7 +151,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 20px 20px 30px; }
 .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--muted-fg); }
 .meta { font-size: 12.5px; color: var(--muted-fg); margin-top: 3px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .meta .sep { opacity: .5; }
-.riep { font-size: 13.5px; color: color-mix(in srgb, var(--fg) 84%, transparent); margin-top: 9px; line-height: 1.55;
+.summary { font-size: 13.5px; color: color-mix(in srgb, var(--fg) 84%, transparent); margin-top: 9px; line-height: 1.55;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .crit { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
 .cchip { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; border: 1px solid var(--border);
@@ -159,15 +159,15 @@ main { max-width: 1080px; margin: 0 auto; padding: 20px 20px 30px; }
 .cchip .bar { width: 34px; height: 4px; border-radius: 2px; background: var(--muted); overflow: hidden; }
 .cchip .bar i { display: block; height: 100%; border-radius: 2px; }
 .cchip b { color: var(--fg); font-variant-numeric: tabular-nums; }
-.firme { display: flex; align-items: center; gap: 7px; margin-top: 7px; font-size: 12px; color: var(--muted-fg); }
-.firme svg { flex-shrink: 0; opacity: .8; }
-.firlist { display: flex; flex-wrap: wrap; gap: 6px; }
-.fperson { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--bg); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; }
-.fperson svg { color: #f59e0b; }
-a.fperson { color: var(--fg); text-decoration: none; }
-a.fperson:hover { border-color: var(--primary); color: var(--primary); }
-a.fperson:hover svg:last-child { color: var(--primary); }
-a.fperson svg:last-child { color: var(--muted-fg); }
+.signatories { display: flex; align-items: center; gap: 7px; margin-top: 7px; font-size: 12px; color: var(--muted-fg); }
+.signatories svg { flex-shrink: 0; opacity: .8; }
+.signatory-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.signatory { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--bg); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; }
+.signatory svg { color: #f59e0b; }
+a.signatory { color: var(--fg); text-decoration: none; }
+a.signatory:hover { border-color: var(--primary); color: var(--primary); }
+a.signatory:hover svg:last-child { color: var(--primary); }
+a.signatory svg:last-child { color: var(--muted-fg); }
 
 .skel { display: flex; gap: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px 18px; position: relative; overflow: hidden; }
 .skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
@@ -213,7 +213,7 @@ a.fperson svg:last-child { color: var(--muted-fg); }
 .panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 15px 17px; margin-bottom: 12px;
   transition: background-color .25s ease, border-color .25s ease; }
 .panel h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted-fg); font-weight: 700; }
-.panel .riep-full { font-size: 14px; line-height: 1.65; white-space: pre-wrap; }
+.panel .summary-full { font-size: 14px; line-height: 1.65; white-space: pre-wrap; }
 .crow { display: grid; grid-template-columns: 110px 1fr 42px; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); }
 .crow:last-of-type { border-bottom: 0; }
 .crow .clbl { font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
@@ -222,7 +222,7 @@ a.fperson svg:last-child { color: var(--muted-fg); }
 .crow .cbar i { display: block; height: 100%; border-radius: 3px; transition: width .8s cubic-bezier(.32,.72,0,1); }
 .crow .cval { font-size: 13px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
 .cmot { grid-column: 1 / -1; font-size: 12px; color: var(--muted-fg); line-height: 1.5; margin-top: -2px; }
-.testo { white-space: pre-wrap; font-size: 13.5px; line-height: 1.7; font-family: inherit; margin: 0; }
+.text-body { white-space: pre-wrap; font-size: 13.5px; line-height: 1.7; font-family: inherit; margin: 0; }
 .dmeta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted-fg); }
 .dmeta b { color: var(--fg); font-weight: 600; }
 .dfoot { display: flex; justify-content: space-between; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--border);
@@ -268,10 +268,10 @@ footer { text-align: center; color: var(--muted-fg); font-size: 12px; padding: 2
   <h1>Quanto conta davvero<br><span class="grad">ogni emendamento?</span></h1>
   <p class="sub">Esplora le valutazioni di utilità pubblica degli emendamenti parlamentari italiani. Cerca, filtra e leggi il testo completo: migliaia di atti, un unico posto.</p>
   <div class="legend" aria-label="Rubrica di valutazione">
-    <span class="lchip"><i style="background:var(--c-trasparenza)"></i>Trasparenza <b>30%</b></span>
-    <span class="lchip"><i style="background:var(--c-salute)"></i>Salute <b>25%</b></span>
-    <span class="lchip"><i style="background:var(--c-ambiente)"></i>Ambiente <b>25%</b></span>
-    <span class="lchip"><i style="background:var(--c-concretezza)"></i>Concretezza <b>20%</b></span>
+    <span class="lchip"><i style="background:var(--c-transparency)"></i>Trasparenza <b>30%</b></span>
+    <span class="lchip"><i style="background:var(--c-health)"></i>Salute <b>25%</b></span>
+    <span class="lchip"><i style="background:var(--c-environment)"></i>Ambiente <b>25%</b></span>
+    <span class="lchip"><i style="background:var(--c-concreteness)"></i>Concretezza <b>20%</b></span>
   </div>
   <div class="stats" id="stats">
     <div class="stat"><div class="lbl">Valutazioni</div><div class="val" data-stat="tot">—</div><div class="note">emendamenti valutati</div></div>
@@ -285,7 +285,7 @@ footer { text-align: center; color: var(--muted-fg); font-size: 12px; padding: 2
   <div class="toolbar-in">
     <span class="count" id="count" aria-live="polite">Caricamento…</span>
     <span class="group-lbl">Tipo</span>
-    <div class="chipgroup" id="cg-tipo" role="group" aria-label="Filtra per tipo"></div>
+    <div class="chipgroup" id="cg-type" role="group" aria-label="Filtra per tipo"></div>
     <span class="group-lbl">Score</span>
     <div class="chipgroup" id="cg-score" role="group" aria-label="Filtra per score minimo"></div>
     <div class="seg" id="seg-sort" role="group" aria-label="Ordina risultati">
@@ -296,10 +296,10 @@ footer { text-align: center; color: var(--muted-fg); font-size: 12px; padding: 2
 </div>
 
 <main>
-  <div id="lista" role="list" aria-label="Elenco valutazioni"></div>
+  <div id="list" role="list" aria-label="Elenco valutazioni"></div>
   <div id="sentinel" aria-hidden="true" style="height:1px"></div>
   <div class="loadrow">
-    <button id="carica" class="btn" type="button" style="display:none">Carica altri</button>
+    <button id="load-more" class="btn" type="button" style="display:none">Carica altri</button>
     <div id="loadmsg" style="display:none;color:var(--muted-fg);font-size:13px;align-items:center;gap:8px"><span class="spinner" aria-hidden="true"></span>Caricamento…</div>
     <div class="end" id="end"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span id="end-text"></span></div>
   </div>
@@ -342,17 +342,17 @@ var PAGE = 30;
 var RM = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 var CRIT_COLOR = { trasparenza: "#3b82f6", salute: "#10b981", ambiente: "#84cc16", concretezza: "#f59e0b" };
 var CRIT_LABEL = { trasparenza: "Trasparenza", salute: "Salute", ambiente: "Ambiente", concretezza: "Concretezza" };
-var TIPI = [["all", "Tutti"], ["E", "Emendamenti"], ["G", "O.d.G."]];
-var SCORI = [[0, "Tutti"], [5, "≥ 5"], [7, "≥ 7"], [8.5, "≥ 8,5"]];
-var SORTI = [["score_desc", "Score ↓"], ["score_asc", "Score ↑"], ["data_desc", "Recenti ↓"], ["data_asc", "Data ↑"]];
+var TYPES = [["all", "Tutti"], ["E", "Emendamenti"], ["G", "O.d.G."]];
+var SCORES = [[0, "Tutti"], [5, "≥ 5"], [7, "≥ 7"], [8.5, "≥ 8,5"]];
+var SORTS = [["score_desc", "Score ↓"], ["score_asc", "Score ↑"], ["data_desc", "Recenti ↓"], ["data_asc", "Data ↑"]];
 
-var state = { q: "", tipo: "all", minScore: 0, sort: "score_desc", items: [], total: null, loading: false, ended: false, error: null, seq: 0 };
+var state = { q: "", type: "all", minScore: 0, sort: "score_desc", items: [], total: null, loading: false, ended: false, error: null, seq: 0 };
 var drawerId = null;
 var lastFocus = null;
 
 function $(id) { return document.getElementById(id); }
-var els = { q: $("q"), lista: $("lista"), count: $("count"), sentinel: $("sentinel"), carica: $("carica"),
-  loadmsg: $("loadmsg"), end: $("end"), endText: $("end-text"), cgTipo: $("cg-tipo"), cgScore: $("cg-score"),
+var els = { q: $("q"), list: $("list"), count: $("count"), sentinel: $("sentinel"), loadMore: $("load-more"),
+  loadmsg: $("loadmsg"), end: $("end"), endText: $("end-text"), cgType: $("cg-type"), cgScore: $("cg-score"),
   seg: $("seg-sort"), frow: $("frow"), scrim: $("scrim"), drawer: $("drawer"), dBody: $("d-body"),
   dTitle: $("d-title"), dMeta: $("d-meta"), dGauge: $("d-gauge"), dClose: $("d-close"), dPrev: $("d-prev"), dNext: $("d-next"),
   themeBtn: $("theme-btn"), icoSun: $("ico-sun"), icoMoon: $("ico-moon"), kbd: $("kbd-hint") };
@@ -364,7 +364,7 @@ function esc(s) {
 }
 function fmtScore(v) { return v == null ? "–" : Number(v).toFixed(1).replace(".", ","); }
 function scoreColor(v) { return v == null ? "var(--muted-fg)" : "hsl(" + Math.round(Number(v) * 12) + " 82% " + (document.documentElement.dataset.theme === "dark" ? "62%" : "45%") + ")"; }
-function fmtData(d) {
+function fmtDate(d) {
   if (!d) return "data n/d";
   var dt = new Date(d + "T00:00:00");
   return isNaN(dt) ? String(d) : dt.toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" });
@@ -396,13 +396,13 @@ function api(path, count) {
   });
 }
 
-var HAS_FIRMATARI = false;
-var HAS_FIRMATARI_URI = false;
+var HAS_SIGNATORIES = false;
+var HAS_SIGNATORY_URIS = false;
 function selList() {
-  return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(numero,tipo,ddl,data,url_testo" + (HAS_FIRMATARI ? ",firmatari" : "") + (HAS_FIRMATARI_URI ? ",firmatari_uri" : "") + "),punteggi(criterio,punteggio,motivazione)";
+  return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(numero,tipo,ddl,data,url_testo" + (HAS_SIGNATORIES ? ",firmatari" : "") + (HAS_SIGNATORY_URIS ? ",firmatari_uri" : "") + "),punteggi(criterio,punteggio,motivazione)";
 }
 function selDetail() {
-  return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(id,numero,tipo,ddl,data,testo,url_testo,atto_uri,sede_commissione" + (HAS_FIRMATARI ? ",firmatari" : "") + (HAS_FIRMATARI_URI ? ",firmatari_uri" : "") + "),punteggi(criterio,punteggio,motivazione)";
+  return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(id,numero,tipo,ddl,data,testo,url_testo,atto_uri,sede_commissione" + (HAS_SIGNATORIES ? ",firmatari" : "") + (HAS_SIGNATORY_URIS ? ",firmatari_uri" : "") + "),punteggi(criterio,punteggio,motivazione)";
 }
 function orderClause() {
   if (state.sort === "score_asc") return "score_totale.asc.nullslast";
@@ -413,13 +413,13 @@ function orderClause() {
 function baseParams() {
   var p = ["select=" + selList(), "order=" + orderClause(), "limit=" + PAGE, "offset=" + state.items.length];
   if (state.minScore > 0) p.push("score_totale=gte." + state.minScore);
-  if (state.tipo !== "all") p.push("emendamenti.tipo=eq." + state.tipo);
+  if (state.type !== "all") p.push("emendamenti.tipo=eq." + state.type);
   return p;
 }
 function searchOrClause(qs, cb) {
   var pat = "*" + qs + "*";
   var emOr = ["numero.ilike." + pat, "ddl.ilike." + pat, "testo.ilike." + pat];
-  if (HAS_FIRMATARI) emOr.push("firmatari.ilike." + pat);
+  if (HAS_SIGNATORIES) emOr.push("firmatari.ilike." + pat);
   Promise.all([
     api("valutazioni?select=id&or=(riepilogo.ilike." + pat + ")&limit=1000"),
     api("emendamenti?select=id&or=(" + emOr.join(",") + ")&limit=1000")
@@ -476,7 +476,7 @@ function loadMore() {
         state.items = [];
         state.total = 0;
         state.ended = true;
-        els.lista.innerHTML = "";
+        els.list.innerHTML = "";
         updateCount();
         setLoadingUI();
         showEmpty();
@@ -496,7 +496,7 @@ function resetAndLoad() {
   state.error = null;
   state.seq++;
   state.loading = false;
-  els.lista.innerHTML = "";
+  els.list.innerHTML = "";
   showSkeletons();
   updateCount();
   updateFrow();
@@ -506,7 +506,7 @@ function resetAndLoad() {
 
 function setLoadingUI() {
   var first = state.items.length === 0 && !state.error;
-  els.carica.style.display = (!state.loading && !state.ended && !first && state.items.length > 0) ? "inline-flex" : "none";
+  els.loadMore.style.display = (!state.loading && !state.ended && !first && state.items.length > 0) ? "inline-flex" : "none";
   els.loadmsg.style.display = state.loading ? "inline-flex" : "none";
   if (state.loading && first) showSkeletons();
   if (!state.loading && first && !state.error) hideSkeletons();
@@ -528,10 +528,10 @@ function showSkeletons() {
       '<div class="sk" style="width:90%;height:11px;margin-top:12px"></div><div class="sk" style="width:70%;height:11px;margin-top:7px"></div>' +
       '<div style="display:flex;gap:6px;margin-top:12px"><div class="sk" style="width:74px;height:20px;border-radius:999px"></div><div class="sk" style="width:74px;height:20px;border-radius:999px"></div><div class="sk" style="width:74px;height:20px;border-radius:999px"></div></div></div></div>';
   }
-  els.lista.innerHTML = html;
+  els.list.innerHTML = html;
 }
 function hideSkeletons() {
-  if (els.lista.querySelector(".skel")) els.lista.innerHTML = "";
+  if (els.list.querySelector(".skel")) els.list.innerHTML = "";
 }
 function updateCount() {
   if (state.error && state.items.length === 0) { els.count.textContent = "Errore"; return; }
@@ -542,12 +542,12 @@ function showError(err) {
   hideSkeletons();
   if (state.items.length > 0) {
     els.loadmsg.style.display = "none";
-    els.carica.style.display = "inline-flex";
-    els.carica.disabled = false;
-    els.carica.textContent = "Riprova";
+    els.loadMore.style.display = "inline-flex";
+    els.loadMore.disabled = false;
+    els.loadMore.textContent = "Riprova";
     return;
   }
-  els.lista.innerHTML =
+  els.list.innerHTML =
     '<div class="errbox"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></div>' +
     "<h2>Errore nel caricamento</h2><p><code>" + esc(err.message) + "</code></p>" +
     '<button class="btn primary" id="retry" type="button">Riprova</button></div>';
@@ -557,7 +557,7 @@ function showError(err) {
 function showEmpty() {
   hideSkeletons();
   var qs = sanitizeQ(state.q);
-  var filtered = qs || state.tipo !== "all" || state.minScore > 0;
+  var filtered = qs || state.type !== "all" || state.minScore > 0;
   var msg, sub;
   if (filtered) {
     msg = "Nessun risultato" + (qs ? " per «" + qs + "»" : "");
@@ -566,13 +566,13 @@ function showEmpty() {
     msg = "Nessuna valutazione presente";
     sub = 'Esegui la pipeline (<code>npm run demo -- --limit N</code>) con SUPABASE_URL e SUPABASE_KEY impostate per popolare il database.';
   }
-  els.lista.innerHTML =
+  els.list.innerHTML =
     '<div class="empty"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/></svg></div>' +
     "<h2>" + esc(msg) + "</h2><p>" + sub + "</p>" +
-    (filtered ? '<button class="btn primary" id="reset-f" type="button">Azzera filtri e ricerca</button>' : "") + "</div>";
+    (filtered ? '<button class="btn primary" id="reset-filters" type="button">Azzera filtri e ricerca</button>' : "") + "</div>";
   if (filtered) {
-    $("reset-f").addEventListener("click", function () {
-      state.q = ""; state.tipo = "all"; state.minScore = 0;
+    $("reset-filters").addEventListener("click", function () {
+      state.q = ""; state.type = "all"; state.minScore = 0;
       els.q.value = "";
       syncChipGroups(); resetAndLoad();
     });
@@ -597,36 +597,36 @@ function animateGauge(svgEl, score) {
   requestAnimationFrame(function () { requestAnimationFrame(function () { fg.style.strokeDashoffset = off; }); });
 }
 
-function splitFirmatari(e) {
+function splitSignatories(e) {
   return String((e && e.firmatari) || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
 }
-function splitFirmatariUri(e) {
+function splitSignatoryUris(e) {
   return String((e && e.firmatari_uri) || "").split(",").map(function (s) { return s.trim(); });
 }
-function firmeHTML(e) {
-  var f = splitFirmatari(e);
+function signatoriesHTML(e) {
+  var f = splitSignatories(e);
   if (!f.length) return "";
   var shown = f.slice(0, 3).join(", ") + (f.length > 3 ? " +" + (f.length - 3) + " altri" : "");
-  return '<div class="firme"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>' + esc(shown) + "</span></div>";
+  return '<div class="signatories"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>' + esc(shown) + "</span></div>";
 }
 
 function cardHTML(v, i) {
   var e = v.emendamenti || {};
-  var tipo = e.tipo === "G" ? "G" : "E";
-  var tipoLbl = tipo === "G" ? "O.d.G." : "Emendamento";
-  var titolo = tipoLbl + " " + (e.numero || "?") + (e.ddl ? " · " + e.ddl : "");
+  var type = e.tipo === "G" ? "G" : "E";
+  var typeLabel = type === "G" ? "O.d.G." : "Emendamento";
+  var title = typeLabel + " " + (e.numero || "?") + (e.ddl ? " · " + e.ddl : "");
   var crit = (v.punteggi || []).map(function (p) {
     var col = CRIT_COLOR[p.criterio] || "var(--primary)";
     var pct = Math.max(0, Math.min(100, Number(p.punteggio) * 10));
     return '<span class="cchip"><i style="width:7px;height:7px;border-radius:50%;background:' + col + '"></i>' + esc(CRIT_LABEL[p.criterio] || p.criterio) +
       '<span class="bar"><i style="width:' + pct + "%;background:" + col + '"></i></span><b>' + esc(fmtScore(p.punteggio)) + "</b></span>";
   }).join("");
-  return '<article class="card" role="listitem" tabindex="0" data-id="' + esc(v.id) + '" style="animation-delay:' + Math.min(i, 12) * 35 + 'ms" aria-label="' + esc(titolo) + ', score ' + esc(fmtScore(v.score_totale)) + '">' +
+  return '<article class="card" role="listitem" tabindex="0" data-id="' + esc(v.id) + '" style="animation-delay:' + Math.min(i, 12) * 35 + 'ms" aria-label="' + esc(title) + ', score ' + esc(fmtScore(v.score_totale)) + '">' +
     gaugeSVG(v.score_totale, 56) +
-    '<div class="body"><div class="row1"><div><div class="title"><span class="tbadge ' + tipo + '">' + tipoLbl + "</span>" +
+    '<div class="body"><div class="row1"><div><div class="title"><span class="tbadge ' + type + '">' + typeLabel + "</span>" +
     '<span class="num">' + esc(e.numero || "?") + "</span></div>" +
-    '<div class="meta"><span>' + esc(e.ddl || "atto non indicato") + '</span><span class="sep">·</span><span>' + esc(fmtData(e.data)) + "</span></div>" + firmeHTML(e) + "</div></div>" +
-    (v.riepilogo ? '<div class="riep">' + esc(v.riepilogo) + "</div>" : "") +
+    '<div class="meta"><span>' + esc(e.ddl || "atto non indicato") + '</span><span class="sep">·</span><span>' + esc(fmtDate(e.data)) + "</span></div>" + signatoriesHTML(e) + "</div></div>" +
+    (v.riepilogo ? '<div class="summary">' + esc(v.riepilogo) + "</div>" : "") +
     (crit ? '<div class="crit">' + crit + "</div>" : "") +
     "</div></article>";
 }
@@ -647,13 +647,13 @@ function appendItems(rows) {
     var svg = card.querySelector("svg.gauge");
     if (svg) animateGauge(svg, v.score_totale);
   });
-  els.lista.appendChild(frag);
+  els.list.appendChild(frag);
   if (!state.loading && state.items.length === 0) showEmpty();
 }
 
-els.lista.addEventListener("keydown", function (ev) {
+els.list.addEventListener("keydown", function (ev) {
   if (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") return;
-  var cards = els.lista.querySelectorAll(".card");
+  var cards = els.list.querySelectorAll(".card");
   if (!cards.length) return;
   var idx = Array.prototype.indexOf.call(cards, document.activeElement);
   ev.preventDefault();
@@ -683,15 +683,15 @@ function openDetail(id) {
 }
 function renderDetail(v) {
   var e = v.emendamenti || {};
-  var tipo = e.tipo === "G" ? "G" : "E";
-  var tipoLbl = tipo === "G" ? "O.d.G." : "Emendamento";
+  var type = e.tipo === "G" ? "G" : "E";
+  var typeLabel = type === "G" ? "O.d.G." : "Emendamento";
   els.dGauge.innerHTML = gaugeSVG(v.score_totale, 64);
   var g = els.dGauge.querySelector("svg.gauge");
   if (g) animateGauge(g, v.score_totale);
-  els.dTitle.innerHTML = '<span class="tbadge ' + tipo + '">' + tipoLbl + '</span><span class="num">' + esc(e.numero || "?") + "</span>";
+  els.dTitle.innerHTML = '<span class="tbadge ' + type + '">' + typeLabel + '</span><span class="num">' + esc(e.numero || "?") + "</span>";
   els.dMeta.innerHTML =
     (e.ddl ? "<span><b>" + esc(e.ddl) + "</b></span>" : "") +
-    "<span>" + esc(fmtData(e.data)) + "</span>" +
+    "<span>" + esc(fmtDate(e.data)) + "</span>" +
     "<span>modello: <b>" + esc(v.modello || "?") + "</b></span>" +
     (e.url_testo ? '<span><a href="' + esc(e.url_testo) + '" target="_blank" rel="noopener">Fonte originale ↗</a></span>' : "");
   var rows = (v.punteggi || []).map(function (p) {
@@ -702,28 +702,28 @@ function renderDetail(v) {
       '<span class="cval" style="color:' + col + '">' + esc(fmtScore(p.punteggio)) + "</span>" +
       (p.motivazione ? '<span class="cmot">' + esc(p.motivazione) + "</span>" : "") + "</div>";
   }).join("");
-  var f = splitFirmatari(e);
-  var furi = splitFirmatariUri(e);
+  var f = splitSignatories(e);
+  var uris = splitSignatoryUris(e);
   var firPanel = f.length
-    ? '<div class="panel"><h3>Firmatari (' + f.length + ")</h3><div class='firlist'>" +
+    ? '<div class="panel"><h3>Firmatari (' + f.length + ")</h3><div class='signatory-list'>" +
       f.map(function (n, i) {
         var star = i === 0 ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" title="primo firmatario"><path d="m12 2 2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8Z"/></svg>' : "";
         var ext = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>';
-        var u = furi[i] || "";
+        var u = uris[i] || "";
         var inner = star + esc(n) + (u ? ext : "");
         return u
-          ? "<a class='fperson' href='" + esc(u) + "' target='_blank' rel='noopener' title='Profilo su senato.it'>" + inner + "</a>"
-          : "<span class='fperson'>" + inner + "</span>";
+          ? "<a class='signatory' href='" + esc(u) + "' target='_blank' rel='noopener' title='Profilo su senato.it'>" + inner + "</a>"
+          : "<span class='signatory'>" + inner + "</span>";
       }).join("") + "</div></div>"
     : "";
   els.dBody.innerHTML =
-    '<div class="panel"><h3>Valutazione IA</h3><div class="riep-full">' + esc(v.riepilogo || "Nessun riepilogo.") + "</div>" +
+    '<div class="panel"><h3>Valutazione IA</h3><div class="summary-full">' + esc(v.riepilogo || "Nessun riepilogo.") + "</div>" +
     '<div class="dmeta" style="margin-top:12px"><span>score composito: <b>' + esc(fmtScore(v.score_totale)) + " / 10</b></span>" +
     (v.ts ? "<span>valutato il " + esc(new Date(v.ts).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })) + "</span>" : "") + "</div></div>" +
     firPanel +
     (rows ? '<div class="panel"><h3>Criteri</h3>' + rows + "</div>" : "") +
     '<div class="panel"><h3>Testo dell\u2019emendamento</h3>' +
-    (e.testo ? '<pre class="testo">' + esc(e.testo) + "</pre>" : '<p style="color:var(--muted-fg);font-size:13.5px">Testo non disponibile.</p>') + "</div>";
+    (e.testo ? '<pre class="text-body">' + esc(e.testo) + "</pre>" : '<p style="color:var(--muted-fg);font-size:13.5px">Testo non disponibile.</p>') + "</div>";
   var bars = els.dBody.querySelectorAll(".cbar i");
   var apply = function () { bars.forEach(function (b) { b.style.width = b.dataset.w + "%"; }); };
   if (RM) { apply(); } else { requestAnimationFrame(apply); }
@@ -762,7 +762,7 @@ document.addEventListener("keydown", function (ev) {
   }
 });
 
-/* ---------- filtri / ordinamento ---------- */
+/* ---------- filters / sorting ---------- */
 function buildChips(container, opts, current, onPick) {
   container.innerHTML = "";
   opts.forEach(function (o) {
@@ -776,12 +776,12 @@ function buildChips(container, opts, current, onPick) {
   });
 }
 function syncChipGroups() {
-  buildChips(els.cgTipo, TIPI, state.tipo, function (v) { state.tipo = v; syncChipGroups(); resetAndLoad(); });
-  buildChips(els.cgScore, SCORI, state.minScore, function (v) { state.minScore = v; syncChipGroups(); resetAndLoad(); });
+  buildChips(els.cgType, TYPES, state.type, function (v) { state.type = v; syncChipGroups(); resetAndLoad(); });
+  buildChips(els.cgScore, SCORES, state.minScore, function (v) { state.minScore = v; syncChipGroups(); resetAndLoad(); });
 }
 function buildSeg() {
   els.seg.querySelectorAll("button").forEach(function (b) { b.remove(); });
-  SORTI.forEach(function (o) {
+  SORTS.forEach(function (o) {
     var b = document.createElement("button");
     b.type = "button";
     b.className = String(state.sort) === o[0] ? "on" : "";
@@ -805,7 +805,7 @@ function updateFrow() {
   var chips = [];
   var qs = sanitizeQ(state.q);
   if (qs) chips.push({ lbl: "Ricerca: «" + qs + "»", fn: function () { state.q = ""; els.q.value = ""; } });
-  if (state.tipo !== "all") chips.push({ lbl: "Tipo: " + (state.tipo === "G" ? "O.d.G." : "Emendamenti"), fn: function () { state.tipo = "all"; } });
+  if (state.type !== "all") chips.push({ lbl: "Tipo: " + (state.type === "G" ? "O.d.G." : "Emendamenti"), fn: function () { state.type = "all"; } });
   if (state.minScore > 0) chips.push({ lbl: "Score ≥ " + String(state.minScore).replace(".", ","), fn: function () { state.minScore = 0; } });
   if (!chips.length) { els.frow.classList.remove("show"); els.frow.innerHTML = ""; return; }
   els.frow.classList.add("show");
@@ -821,7 +821,7 @@ function updateFrow() {
   clear.type = "button";
   clear.className = "clearbtn";
   clear.textContent = "Cancella tutto";
-  clear.addEventListener("click", function () { state.q = ""; state.tipo = "all"; state.minScore = 0; els.q.value = ""; syncChipGroups(); resetAndLoad(); });
+  clear.addEventListener("click", function () { state.q = ""; state.type = "all"; state.minScore = 0; els.q.value = ""; syncChipGroups(); resetAndLoad(); });
   els.frow.appendChild(clear);
 }
 
@@ -830,7 +830,7 @@ function updateHash() {
   var p = new URLSearchParams();
   var qs = sanitizeQ(state.q);
   if (qs) p.set("q", state.q);
-  if (state.tipo !== "all") p.set("tipo", state.tipo);
+  if (state.type !== "all") p.set("type", state.type);
   if (state.minScore > 0) p.set("min", String(state.minScore));
   if (state.sort !== "score_desc") p.set("sort", state.sort);
   var s = p.toString();
@@ -840,12 +840,12 @@ function readHash() {
   var p;
   try { p = new URLSearchParams(location.hash.slice(1)); } catch (e) { return; }
   var q = p.get("q"); if (q) { state.q = q; els.q.value = q; }
-  var t = p.get("tipo"); if (t === "E" || t === "G") state.tipo = t;
+  var t = p.get("type"); if (t === "E" || t === "G") state.type = t;
   var m = parseFloat(p.get("min")); if (!isNaN(m) && m > 0 && m <= 10) state.minScore = m;
-  var s = p.get("sort"); if (SORTI.some(function (o) { return o[0] === s; })) state.sort = s;
+  var s = p.get("sort"); if (SORTS.some(function (o) { return o[0] === s; })) state.sort = s;
 }
 
-/* ---------- ricerca ---------- */
+/* ---------- search ---------- */
 var deb = null;
 els.q.addEventListener("input", function () {
   clearTimeout(deb);
@@ -854,11 +854,11 @@ els.q.addEventListener("input", function () {
 els.q.addEventListener("keydown", function (ev) {
   if (ev.key === "Escape") { if (els.q.value) { els.q.value = ""; state.q = ""; resetAndLoad(); } else els.q.blur(); }
 });
-els.carica.addEventListener("click", function () {
+els.loadMore.addEventListener("click", function () {
   if (state.error) { resetAndLoad(); } else { loadMore(); }
 });
 
-/* ---------- tema ---------- */
+/* ---------- theme ---------- */
 function setTheme(t) {
   document.documentElement.dataset.theme = t;
   try { localStorage.setItem("ep-theme", t); } catch (e) {}
@@ -904,7 +904,7 @@ function loadStats() {
     var last = rs[4].data[0];
     var lel = document.querySelector('[data-stat="last"]');
     if (lel) {
-      lel.textContent = last && last.ts ? fmtData(String(last.ts).slice(0, 10)) : "—";
+      lel.textContent = last && last.ts ? fmtDate(String(last.ts).slice(0, 10)) : "—";
       lel.parentElement.querySelector(".note").textContent = last && last.modello ? "modello: " + last.modello : "—";
     }
   }).catch(function () {
@@ -912,7 +912,7 @@ function loadStats() {
   });
 }
 
-/* ---------- avvio ---------- */
+/* ---------- init ---------- */
 var io = new IntersectionObserver(function (entries) {
   entries.forEach(function (en) { if (en.isIntersecting) loadMore(); });
 }, { rootMargin: "600px 0px" });
@@ -922,8 +922,8 @@ Promise.all([
   api("emendamenti?select=firmatari&limit=1").catch(function () { return null; }),
   api("emendamenti?select=firmatari_uri&limit=1").catch(function () { return null; })
 ]).then(function (rs) {
-  HAS_FIRMATARI = !!rs[0];
-  HAS_FIRMATARI_URI = !!rs[1];
+  HAS_SIGNATORIES = !!rs[0];
+  HAS_SIGNATORY_URIS = !!rs[1];
   readHash();
   syncChipGroups();
   buildSeg();
