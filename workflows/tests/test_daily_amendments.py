@@ -29,6 +29,10 @@ async def _page(legislature: int, page_limit: int, offset: int) -> list[mod.Amen
     return [] if offset else [_eme(1), _eme(2), _eme(3)]
 
 
+async def _saved_map_empty(legislature: int) -> dict:
+    return {}
+
+
 async def _enrich(eme: mod.Amendment) -> mod.Amendment:
     if eme.id.endswith("/2"):
         raise RuntimeError("AKN unreachable")
@@ -62,6 +66,7 @@ async def _save_evaluations(evaluations: list[Evaluation]) -> int:
 def _patch(monkeypatch) -> None:
     monkeypatch.setattr(mod, "yesterday", _yesterday)
     monkeypatch.setattr(mod, "fetch_metadata_page", _page)
+    monkeypatch.setattr(mod, "saved_id_date_map", _saved_map_empty)
     monkeypatch.setattr(mod, "enrich_amendment", _enrich)
     monkeypatch.setattr(mod, "save_amendments", _save)
     monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
@@ -121,6 +126,7 @@ async def test_multi_day_period(monkeypatch) -> None:
 
     monkeypatch.setattr(mod, "yesterday", _yesterday)
     monkeypatch.setattr(mod, "fetch_metadata_page", _page)
+    monkeypatch.setattr(mod, "saved_id_date_map", _saved_map_empty)
     monkeypatch.setattr(mod, "enrich_amendment", _enrich_range)
     monkeypatch.setattr(mod, "save_amendments", _save)
     monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
@@ -166,6 +172,7 @@ async def test_pagination_with_early_stop(monkeypatch) -> None:
 
     monkeypatch.setattr(mod, "yesterday", _yesterday)
     monkeypatch.setattr(mod, "fetch_metadata_page", _pages)
+    monkeypatch.setattr(mod, "saved_id_date_map", _saved_map_empty)
     monkeypatch.setattr(mod, "enrich_amendment", _enrich_pages)
     monkeypatch.setattr(mod, "save_amendments", _save)
     monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
@@ -179,6 +186,43 @@ async def test_pagination_with_early_stop(monkeypatch) -> None:
     assert d["analyzed"] == 4
     assert d["found"] == 1
     assert d["ids"] == ["http://dati.senato.it/emendamento/3"]
+
+
+async def test_skips_already_saved(monkeypatch) -> None:
+    SAVED.clear()
+    EVALUATED.clear()
+    seen: list[str] = []
+
+    async def _saved_map(legislature: int) -> dict:
+        return {"http://dati.senato.it/emendamento/1": DATE}
+
+    async def _enrich_skip(eme: mod.Amendment) -> mod.Amendment:
+        seen.append(eme.id)
+        eme.date = "2026-01-09"
+        eme.bill = "Ddl 391"
+        eme.text = "text"
+        return eme
+
+    monkeypatch.setattr(mod, "yesterday", _yesterday)
+    monkeypatch.setattr(mod, "saved_id_date_map", _saved_map)
+    monkeypatch.setattr(mod, "fetch_metadata_page", _page)
+    monkeypatch.setattr(mod, "enrich_amendment", _enrich_skip)
+    monkeypatch.setattr(mod, "save_amendments", _save)
+    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
+    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
+    result = await workflows.execute_workflow(
+        mod.DailyAmendmentsWorkflow,
+        params=mod.DailyAmendmentsInput(date=DATE, legislature=19, limit=10),
+    )
+    d = result if isinstance(result, dict) else result.model_dump()
+    assert seen == [
+        "http://dati.senato.it/emendamento/2",
+        "http://dati.senato.it/emendamento/3",
+    ]
+    assert d["metadata_fetched"] == 3
+    assert d["analyzed"] == 2
+    assert d["found"] == 0
+    assert d["saved"] == 0
 
 
 def test_inconsistent_period() -> None:
