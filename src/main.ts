@@ -42,6 +42,10 @@ async function main() {
     }
     console.log(`    Riepilogo: ${v.riepilogo}`);
     console.log(`    Testo: ${(eme.testo ?? "").slice(0, 280)}${(eme.testo ?? "").length > 280 ? "..." : ""}`);
+    if (eme.firmatari && eme.firmatari.length > 0) {
+      const f = eme.firmatari;
+      console.log(`    Firmatari (${f.length}): ${f.slice(0, 5).join(", ")}${f.length > 5 ? ", ..." : ""}`);
+    }
     console.log(`    Fonte: ${eme.urlTesto}`);
   }
 

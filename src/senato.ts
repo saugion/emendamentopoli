@@ -89,6 +89,14 @@ export async function arricchisciConTesto(eme: Emendamento): Promise<Emendamento
         .trim(),
     );
   }
+  // firmatari: <an:docProponent> nel preface (il primo e' il proponente)
+  const proponenti = [
+    ...xml.matchAll(/<an:docProponent\b[^>]*>([\s\S]*?)<\/an:docProponent>/g),
+  ]
+    .map((m) => decode(m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()))
+    .filter((n) => n.length > 0);
+  eme.firmatari = [...new Set(proponenti)];
+
   return eme;
 }
 

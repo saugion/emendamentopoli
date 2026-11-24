@@ -13,6 +13,7 @@ export interface Emendamento {
   data?: string;        // data di presentazione (YYYY-MM-DD)
   testo?: string;       // testo plain-text dell'emendamento
   ddl?: string;         // es. "Ddl 391"
+  firmatari?: string[]; // cognomi dei senatori firmatari (il primo e' il proponente)
 }
 
 export interface Punteggio {
