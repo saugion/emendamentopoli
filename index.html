@@ -331,12 +331,14 @@ footer { text-align: center; color: var(--muted-fg); font-size: 12px; padding: 2
   Made in EU, with <a href="https://mistral.ai" rel="noopener">Mistral AI</a> &middot; sito progettato e costruito con Mistral, azienda europea.
 </footer>
 
-<script>
+<script type="module">
+import { createStore, sanitizeQuery } from "./store.js";
 (function () {
 "use strict";
 
 var SUPABASE_URL = "https://xhhwhtfwqfbrpbjicsoi.supabase.co";
 var SUPABASE_KEY = "sb_publishable_FFWWImZ3CsmCchSp-U0GVA_YjK9kvss";
+var store = createStore({ url: SUPABASE_URL, key: SUPABASE_KEY });
 
 var PAGE = 30;
 var RM = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -370,123 +372,35 @@ function fmtDate(d) {
   return isNaN(dt) ? String(d) : dt.toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" });
 }
 function fmtNum(n) { return Number(n).toLocaleString("it-IT"); }
-function sanitizeQ(q) { return String(q || "").replace(/[%_*,"'()\\.]/g, " ").replace(/\s+/g, " ").trim(); }
-
-function api(path, count) {
-  return fetch(SUPABASE_URL + "/rest/v1/" + path, {
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: "Bearer " + SUPABASE_KEY,
-      ...(count ? { Prefer: "count=exact" } : {})
-    }
-  }).then(function (res) {
-    return res.text().then(function (text) {
-      if (!res.ok) {
-        var msg = text;
-        try { msg = JSON.parse(text).message || text; } catch (e) {}
-        var err = new Error("HTTP " + res.status + " " + String(msg).slice(0, 160));
-        err.status = res.status;
-        throw err;
-      }
-      var total = null;
-      var range = res.headers.get("content-range");
-      if (range) { var t = range.split("/")[1]; if (t && t !== "*") total = parseInt(t, 10); }
-      return { data: JSON.parse(text || "[]"), total: total };
-    });
-  });
-}
-
-var HAS_SIGNATORIES = false;
-var HAS_SIGNATORY_URIS = false;
-function selList() {
-  return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(numero,tipo,ddl,data,url_testo" + (HAS_SIGNATORIES ? ",firmatari" : "") + (HAS_SIGNATORY_URIS ? ",firmatari_uri" : "") + "),punteggi(criterio,punteggio,motivazione)";
-}
-function selDetail() {
-  return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(id,numero,tipo,ddl,data,testo,url_testo,atto_uri,sede_commissione" + (HAS_SIGNATORIES ? ",firmatari" : "") + (HAS_SIGNATORY_URIS ? ",firmatari_uri" : "") + "),punteggi(criterio,punteggio,motivazione)";
-}
-function orderClause() {
-  if (state.sort === "score_asc") return "score_totale.asc.nullslast";
-  if (state.sort === "data_desc") return "emendamenti(data).desc.nullslast";
-  if (state.sort === "data_asc") return "emendamenti(data).asc.nullslast";
-  return "score_totale.desc.nullslast";
-}
-function baseParams() {
-  var p = ["select=" + selList(), "order=" + orderClause(), "limit=" + PAGE, "offset=" + state.items.length];
-  if (state.minScore > 0) p.push("score_totale=gte." + state.minScore);
-  if (state.type !== "all") p.push("emendamenti.tipo=eq." + state.type);
-  return p;
-}
-function searchOrClause(qs, cb) {
-  var pat = "*" + qs + "*";
-  var emOr = ["numero.ilike." + pat, "ddl.ilike." + pat, "testo.ilike." + pat];
-  if (HAS_SIGNATORIES) emOr.push("firmatari.ilike." + pat);
-  Promise.all([
-    api("valutazioni?select=id&or=(riepilogo.ilike." + pat + ")&limit=1000"),
-    api("emendamenti?select=id&or=(" + emOr.join(",") + ")&limit=1000")
-  ]).then(function (rs) {
-    var valIds = rs[0].data.map(function (r) { return r.id; });
-    var emIds = rs[1].data.map(function (r) { return '"' + String(r.id).replace(/"/g, "") + '"'; });
-    var parts = [];
-    if (valIds.length) parts.push("id.in.(" + valIds.join(",") + ")");
-    if (emIds.length) parts.push("emendamento_id.in.(" + emIds.join(",") + ")");
-    cb(parts.length ? "or=(" + parts.join(",") + ")" : null);
-  }).catch(function () { cb(null, true); });
-}
-
 function loadMore() {
   if (state.loading || state.ended) return;
   state.loading = true;
   state.error = null;
   var mySeq = ++state.seq;
   setLoadingUI();
-  var qs = sanitizeQ(state.q);
-  var run = function (extra) {
+  store.search({
+    q: sanitizeQuery(state.q),
+    type: state.type,
+    minScore: state.minScore,
+    sort: state.sort,
+    offset: state.items.length,
+    limit: PAGE
+  }).then(function (r) {
     if (mySeq !== state.seq) return;
-    var params = baseParams();
-    if (extra) params.push(extra);
-    api("valutazioni?" + params.join("&"), true).then(function (r) {
-      if (mySeq !== state.seq) return;
-      state.loading = false;
-      state.items = state.items.concat(r.data);
-      state.total = r.total;
-      if (!r.data.length || (r.total !== null && state.items.length >= r.total)) state.ended = true;
-      appendItems(r.data);
-      updateCount();
-      setLoadingUI();
-    }).catch(function (err) {
-      if (mySeq !== state.seq) return;
-      state.loading = false;
-      if (err && err.status === 416) {
-        state.ended = true;
-        updateCount();
-        setLoadingUI();
-        return;
-      }
-      state.error = err;
-      setLoadingUI();
-      showError(err);
-    });
-  };
-  if (qs) {
-    searchOrClause(qs, function (orClause, failed) {
-      if (mySeq !== state.seq) return;
-      if (failed) { state.loading = false; state.error = new Error("Ricerca non riuscita"); setLoadingUI(); showError(state.error); return; }
-      if (!orClause) {
-        state.loading = false;
-        state.items = [];
-        state.total = 0;
-        state.ended = true;
-        els.list.innerHTML = "";
-        updateCount();
-        setLoadingUI();
-        showEmpty();
-        return;
-      }
-      run(orClause);
-    });
-  } else {
-    run(null);
-  }
+    state.loading = false;
+    state.items = state.items.concat(r.items);
+    state.total = r.total;
+    if (!r.items.length || (r.total !== null && state.items.length >= r.total)) state.ended = true;
+    appendItems(r.items);
+    updateCount();
+    setLoadingUI();
+  }).catch(function (err) {
+    if (mySeq !== state.seq) return;
+    state.loading = false;
+    state.error = err;
+    setLoadingUI();
+    showError(err);
+  });
 }
 
 function resetAndLoad() {
@@ -556,7 +470,7 @@ function showError(err) {
 }
 function showEmpty() {
   hideSkeletons();
-  var qs = sanitizeQ(state.q);
+  var qs = sanitizeQuery(state.q);
   var filtered = qs || state.type !== "all" || state.minScore > 0;
   var msg, sub;
   if (filtered) {
@@ -671,10 +585,9 @@ function openDetail(id) {
   document.body.classList.add("lock");
   els.dBody.innerHTML = '<div style="display:flex;justify-content:center;padding:40px"><span class="spinner"></span></div>';
   els.dClose.focus();
-  api("valutazioni?id=eq." + id + "&select=" + selDetail() + "&limit=1")
-    .then(function (r) {
-      if (!r.data.length) throw new Error("Valutazione non trovata");
-      renderDetail(r.data[0]);
+  store.detail(id)
+    .then(function (row) {
+      renderDetail(row);
       updateDrawerNav();
     })
     .catch(function (err) {
@@ -803,7 +716,7 @@ window.addEventListener("resize", moveThumb);
 
 function updateFrow() {
   var chips = [];
-  var qs = sanitizeQ(state.q);
+  var qs = sanitizeQuery(state.q);
   if (qs) chips.push({ lbl: "Ricerca: «" + qs + "»", fn: function () { state.q = ""; els.q.value = ""; } });
   if (state.type !== "all") chips.push({ lbl: "Tipo: " + (state.type === "G" ? "O.d.G." : "Emendamenti"), fn: function () { state.type = "all"; } });
   if (state.minScore > 0) chips.push({ lbl: "Score ≥ " + String(state.minScore).replace(".", ","), fn: function () { state.minScore = 0; } });
@@ -828,7 +741,7 @@ function updateFrow() {
 /* ---------- hash state ---------- */
 function updateHash() {
   var p = new URLSearchParams();
-  var qs = sanitizeQ(state.q);
+  var qs = sanitizeQuery(state.q);
   if (qs) p.set("q", state.q);
   if (state.type !== "all") p.set("type", state.type);
   if (state.minScore > 0) p.set("min", String(state.minScore));
@@ -886,26 +799,18 @@ function countUp(el, target) {
   requestAnimationFrame(step);
 }
 function loadStats() {
-  Promise.all([
-    api("valutazioni?select=id&limit=0", true),
-    api("valutazioni?select=id&score_totale=gte.7&limit=0", true),
-    api("valutazioni?select=id,emendamenti!inner(tipo)&emendamenti.tipo=eq.E&limit=0", true),
-    api("valutazioni?select=id,emendamenti!inner(tipo)&emendamenti.tipo=eq.G&limit=0", true),
-    api("valutazioni?select=modello,ts&order=ts.desc.nullslast&limit=1")
-  ]).then(function (rs) {
-    countUp(document.querySelector('[data-stat="tot"]'), rs[0].total || 0);
-    countUp(document.querySelector('[data-stat="hi"]'), rs[1].total || 0);
-    var e = rs[2].total || 0, g = rs[3].total || 0;
+  store.stats().then(function (s) {
+    countUp(document.querySelector('[data-stat="tot"]'), s.total);
+    countUp(document.querySelector('[data-stat="hi"]'), s.hi);
     var eg = document.querySelector('[data-stat="eg"]');
     if (eg) {
-      eg.textContent = fmtNum(e);
-      eg.parentElement.querySelector(".note").textContent = fmtNum(g) + (g === 1 ? " ordine del giorno" : " ordini del giorno");
+      eg.textContent = fmtNum(s.e);
+      eg.parentElement.querySelector(".note").textContent = fmtNum(s.g) + (s.g === 1 ? " ordine del giorno" : " ordini del giorno");
     }
-    var last = rs[4].data[0];
     var lel = document.querySelector('[data-stat="last"]');
     if (lel) {
-      lel.textContent = last && last.ts ? fmtDate(String(last.ts).slice(0, 10)) : "—";
-      lel.parentElement.querySelector(".note").textContent = last && last.modello ? "modello: " + last.modello : "—";
+      lel.textContent = s.last && s.last.ts ? fmtDate(String(s.last.ts).slice(0, 10)) : "—";
+      lel.parentElement.querySelector(".note").textContent = s.last && s.last.modello ? "modello: " + s.last.modello : "—";
     }
   }).catch(function () {
     document.querySelectorAll(".stat .val").forEach(function (el) { el.textContent = "—"; });
@@ -918,12 +823,7 @@ var io = new IntersectionObserver(function (entries) {
 }, { rootMargin: "600px 0px" });
 io.observe(els.sentinel);
 
-Promise.all([
-  api("emendamenti?select=firmatari&limit=1").catch(function () { return null; }),
-  api("emendamenti?select=firmatari_uri&limit=1").catch(function () { return null; })
-]).then(function (rs) {
-  HAS_SIGNATORIES = !!rs[0];
-  HAS_SIGNATORY_URIS = !!rs[1];
+store.init().then(function () {
   readHash();
   syncChipGroups();
   buildSeg();

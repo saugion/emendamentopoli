@@ -68,7 +68,9 @@ prototipo: da raffinare prima di un uso reale in produzione.
 - `supabase/migrations/0001_schema.sql` - schema del database
 - `supabase/migrations/0002_firmatari.sql` - colonna `firmatari` + indice trigram (pg_trgm)
 - `supabase/migrations/0003_firmatari_uri.sql` - colonna `firmatari_uri` (link al profilo senato.it dei firmatari)
-- `index.html` - web app statica zero-dipendenze: esplora migliaia di emendamenti con ricerca full-text (testo/ddl/numero/riepilogo/firmatari), filtri per tipo e score, ordinamento, scroll infinito e pannello dettaglio con testo completo, firmatari con link al profilo su senato.it; tema chiaro/scuro; stato in URL (hash)
+- `store.js` - modulo ES che possiede tutto l'accesso PostgREST della web app (`createStore({url, key})` -> `init`/`search`/`detail`/`stats`): headers, query building, sanitizzazione, content-range, mappatura errori, rilevamento colonne `firmatari`
+- `index.html` - web app statica zero-dipendenze (usa `store.js` come modulo ES): esplora migliaia di emendamenti con ricerca full-text (testo/ddl/numero/riepilogo/firmatari), filtri per tipo e score, ordinamento, scroll infinito e pannello dettaglio con testo completo, firmatari con link al profilo su senato.it; tema chiaro/scuro; stato in URL (hash)
+- `tests/store.test.mjs` - test dello store con fetch stubbato (via `npm test`)
 
 ## Roadmap
 
