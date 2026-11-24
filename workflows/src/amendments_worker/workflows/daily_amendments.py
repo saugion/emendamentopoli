@@ -18,7 +18,8 @@ from pydantic import BaseModel, Field, model_validator
 
 import mistralai.workflows as workflows
 
-from .models import SAVE_CHUNK, Amendment
+from . import supabase
+from .models import Amendment
 from .evaluation import Evaluation, save_evaluations, evaluate_amendment
 
 SPARQL_ENDPOINT = "https://dati.senato.it/sparql"
@@ -174,24 +175,6 @@ def extract_signatories(xml: str, legislature: int) -> tuple[list[str], list[str
     return names, uris
 
 
-def supabase_row(a: Amendment) -> dict:
-    return {
-        "id": a.id,
-        "legislatura": a.legislature,
-        "numero": a.number,
-        "tipo": a.type,
-        "sede_commissione": a.committee_seat,
-        "atto_uri": a.act_uri,
-        "ddl": a.bill,
-        "url_testo": a.text_url,
-        "url_testo_xml": a.text_xml_url,
-        "data": a.date,
-        "testo": a.text,
-        "firmatari": ", ".join(a.signatories) if a.signatories else None,
-        "firmatari_uri": ", ".join(a.signatory_uris) if a.signatory_uris else None,
-    }
-
-
 @workflows.activity(start_to_close_timeout=timedelta(seconds=30), retry_policy_max_attempts=1)
 async def yesterday() -> str:
     from datetime import datetime, timedelta as delta
@@ -202,17 +185,7 @@ async def yesterday() -> str:
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=60), retry_policy_max_attempts=3)
 async def saved_amendments_map(legislature: int) -> dict[str, dict[str, str | None]]:
-    import os
-
-    import httpx
-
-    base = os.environ["SUPABASE_URL"].rstrip("/")
-    key = os.environ["SUPABASE_KEY"]
-    url = f"{base}/rest/v1/emendamenti?select=id,data,firmatari&legislatura=eq.{legislature}&limit=100000"
-    async with httpx.AsyncClient(timeout=45.0) as client:
-        resp = await client.get(url, headers={"apikey": key, "Authorization": f"Bearer {key}"})
-        resp.raise_for_status()
-        return {r["id"]: {"data": r["data"], "firmatari": r["firmatari"]} for r in resp.json()}
+    return await supabase.saved_amendments_map(legislature)
 
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=300), retry_policy_max_attempts=3)
@@ -284,31 +257,7 @@ async def enrich_amendment(eme: Amendment) -> Amendment:
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=180), retry_policy_max_attempts=2)
 async def save_amendments(amendments: list[Amendment]) -> int:
-    import os
-
-    import httpx
-
-    base = os.environ["SUPABASE_URL"].rstrip("/")
-    key = os.environ["SUPABASE_KEY"]
-    rows = [supabase_row(a) for a in amendments]
-    headers = {
-        "apikey": key,
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates",
-    }
-    total = 0
-    async with httpx.AsyncClient(timeout=150.0) as client:
-        for i in range(0, len(rows), SAVE_CHUNK):
-            chunk = rows[i : i + SAVE_CHUNK]
-            resp = await client.post(
-                f"{base}/rest/v1/emendamenti?on_conflict=id",
-                headers=headers,
-                json=chunk,
-            )
-            resp.raise_for_status()
-            total += len(chunk)
-    return total
+    return await supabase.upsert_amendments(amendments)
 
 
 @workflows.workflow.define(

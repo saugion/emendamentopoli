@@ -7,10 +7,9 @@ from amendments_worker.workflows.evaluation import (
     Evaluation,
     EvaluationJSON,
     evaluation_prompt,
-    evaluation_row,
-    score_rows,
     composite_score,
 )
+from amendments_worker.workflows.supabase import evaluation_row, score_rows
 
 
 def _eme() -> Amendment:

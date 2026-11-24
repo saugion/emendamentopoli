@@ -1,13 +1,13 @@
 """Backfill: evaluates the amendments already in Supabase that do not have an evaluation yet."""
 
 import asyncio
-import os
 from datetime import timedelta
 
 from pydantic import BaseModel, Field
 
 import mistralai.workflows as workflows
 
+from . import supabase
 from .models import Amendment
 from .evaluation import save_evaluations, evaluate_amendment
 
@@ -25,24 +25,7 @@ class EvaluateMissingOutput(BaseModel):
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=120), retry_policy_max_attempts=3)
 async def amendments_without_evaluation(limit: int) -> list[Amendment]:
-    import httpx
-
-    base = os.environ["SUPABASE_URL"].rstrip("/")
-    key = os.environ["SUPABASE_KEY"]
-    url = (
-        f"{base}/rest/v1/emendamenti"
-        "?select=id,legislature:legislatura,number:numero,type:tipo,committee_seat:sede_commissione,"
-        "act_uri:atto_uri,bill:ddl,text_url:url_testo,text_xml_url:url_testo_xml,date:data,text:testo"
-        ",valutazioni!left(id)"
-        f"&valutazioni.id=is.null&order=created_at.desc&limit={limit}"
-    )
-    async with httpx.AsyncClient(timeout=90.0) as client:
-        resp = await client.get(
-            url, headers={"apikey": key, "Authorization": f"Bearer {key}"}
-        )
-        resp.raise_for_status()
-        rows = resp.json()
-    return [Amendment(**{k: r[k] for k in Amendment.model_fields if k in r}) for r in rows]
+    return await supabase.amendments_without_evaluation(limit)
 
 
 @workflows.workflow.define(
