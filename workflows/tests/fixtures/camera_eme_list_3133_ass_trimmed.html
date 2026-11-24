@@ -1,0 +1,229 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"[]>
+<html xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:fn="http://www.w3.org/2005/xpath-functions" xmlns:xdt="http://www.w3.org/2005/xpath-datatypes" xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>elenco delle proposte emendative in ordine di pubblicazione</title>
+        <link rel="stylesheet" type="text/css" href="https://documenti.camera.it/leg19/emendamenti/css/listaEmendamenti.css" />
+        <script type="text/javascript" src="https://documenti.camera.it/leg19/emendamenti/js/navigator.js">
+      <!--// JavaScript Library-->
+    </script>
+        <script type="text/javascript" src="https://documenti.camera.it/leg19/emendamenti/js/prototype.js">
+      <!--// JavaScript Library-->
+    </script>
+        <script type="text/javascript" src="https://documenti.camera.it/leg19/emendamenti/js/javascript.js">
+      <!--// JavaScript Library "javascript.js"-->
+    </script>
+        <script type="text/javascript" src="https://documenti.camera.it/leg19/emendamenti/js/window.js">
+      <!--// JavaScript Library "window.js"-->
+    </script>
+        <link rel="stylesheet" type="text/css" href="https://documenti.camera.it/leg19/emendamenti/css/default.css" />
+        <link rel="stylesheet" type="text/css" href="https://documenti.camera.it/leg19/emendamenti/css/pink.css" />
+        <link rel="stylesheet" type="text/css" href="https://documenti.camera.it/leg19/emendamenti/css/blue.css" />
+        <link rel="stylesheet" type="text/css" href="https://documenti.camera.it/leg19/emendamenti/css/yellow.css" />
+        <link rel="stylesheet" type="text/css" href="https://documenti.camera.it/leg19/emendamenti/css/green.css" />
+        <script type="text/javascript" src="https://documenti.camera.it/leg19/emendamenti/js/popup_windows.js">
+      <!--// JavaScript Library "popup_windows.js"-->
+    </script>
+    </head>
+    <body onload="javascript:collapseAllRows();initlinks();">
+        <div style="position: absolute; top: 0; left: 0; margin: 0em; padding: 0.2em; font-family:Arial,Tahoma,Verdana; font-size:10pt;">
+            <form id="filtro">
+                <table class="tabellaXHTML lavori" cellpadding="1" cellspacing="1" width="90%" align="center">
+                    <tr>
+                        <td>
+                            <input type="button" name="getNumerazioneArticoli" id="getNumerazioneArticoli" value="mostra navigazione articoli" onclick="getNumerazione();" title="mostra link per il supporto alla navigazione tra gli articoli uguali" />
+                        </td>
+                        <td>
+                            <strong>primi firmatari e occorrenze: </strong>
+                            <select id="proponente" name="proponente">
+                                <option />
+                                <option value="tipo:commissione">La Commissione </option>
+                                <option value="tipo:exArt86Comma4Bis">ex Art. 86 comma 4 bis </option>
+                                <option value="id:308849">Amato Gaetano</option>
+                                <option value="id:305931">Amendola Vincenzo</option>
+                                <option value="id:308846">Auriemma Carmela</option>
+                                <option value="id:302080">Bonelli Angelo</option>
+                                <option value="id:302754">Braga Chiara</option>
+                                <option value="id:308937">Buonguerrieri Alice</option>
+                                <option value="id:308765">Cannata Giovanni Luca</option>
+                                <option value="id:308900">Carrà Anastasio</option>
+                                <option value="id:307657">Cattaneo Alessandro</option>
+                                <option value="id:308785">Cavo Ilaria</option>
+                                <option value="id:308874">Cerreto Marco</option>
+                                <option value="id:307603">Colucci Alessandro</option>
+                                <option value="id:307580">Cortelazzo Piergiorgio</option>
+                                <option value="id:308804">Curti Augusto</option>
+                                <option value="id:307312">D'Attis Mauro</option>
+                                <option value="id:307561">De Luca Piero</option>
+                                <option value="id:308893">Evi Eleonora</option>
+                                <option value="id:308834">Ferrari Sara</option>
+                                <option value="id:307459">Fontana Ilaria</option>
+                                <option value="id:308916">Forattini Antonella</option>
+                                <option value="id:308871">Ghio Valentina</option>
+                                <option value="id:307822">L'Abbate Patty</option>
+                                <option value="id:308760">Manes Franco</option>
+                                <option value="id:308922">Milani Massimo</option>
+                                <option value="id:308818">Morfino Daniela</option>
+                                <option value="id:309160">Romeo Nadia</option>
+                                <option value="id:307478">Ruffino Daniela</option>
+                                <option value="id:307892">Santillo Agostino</option>
+                                <option value="id:308894">Simiani Marco</option>
+                                <option value="id:306214">Squeri Luca</option>
+                                <option value="id:308866">Testa Guerino</option>
+                                <option value="id:308789">Vietri Imma</option>
+                                <option value="id:300469">Zanella Luana</option>
+                                <option value="id:306521">Zaratti Filiberto</option>
+                                <option value="id:308873">Zinzi Gianpiero</option>
+                            </select>
+									 
+									 <input type="button" name="applicaFiltro" id="applicaFiltro" value="applica filtro" onclick="javascript:reload(location.href,$('proponente').getValue());" /></td>
+                    </tr>
+                </table>
+            </form>
+        </div>
+        <div class="wrapper" style="margin: 3em 0em 0em;">
+            <center>
+                <h4 class="lavori">Legislatura XIX</h4>
+            </center>
+            <center>
+                <h4 id="titoloVista" class="lavori">Elenco generale delle proposte emendative () in Assemblea  riferite al C. 
+									<a target="testoPDL" href="https://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&amp;tipoDoc=pdl&amp;iddocumento=3133-A&amp;idlegislatura=19">3133-A</a>, in ordine di pubblicazione</h4>
+            </center>
+            <div class="boxLavori">
+                <div id="selettore">
+                    <div class="emeOn">
+                        <a href="#eme.dl" class="button">relative al decreto-legge</a>
+                    </div>
+                    <div class="emeOff">relative al disegno di legge di conversione</div>
+                </div>
+                <div class="articolato">
+                    <table class="tabellaXHTML lavori" cellpadding="1" cellspacing="1">
+                        <caption>PROPOSTE EMENDATIVE RELATIVE AL <a name="eme.dl">DECRETO-LEGGE</a></caption>
+                        <thead>
+                            <tr>
+                                <th>Art</th>
+                                <th>Proposta emendativa</th>
+                                <th>Firmatari</th>
+                                <th>Esito<sup title="Esiti possibili: approvato, inammissibile, precluso, irricevibile, ritirato e riammesso">*</sup></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="rigaArticoloNormale" id="cmd.art..1.1" title="IDREF:ID0EEVAE">
+                                <td colspan="1">
+                                    <acronym id="acronym:IDREF:ID0EEVAE" title="Mostra le proposte emendative riferite all'Art. 1">
+                                        <a href="javascript: collapseShowRows('IDREF:ID0EEVAE');">Art. 1</a>
+                                    </acronym>
+                                </td>
+                                <td colspan="3">
+                                    <span id="span:naviga:proposte:emendative:IDREF:ID0EEVAE" class="navigaProposteEmendative"> </span> <span id="span:IDREF:ID0EEVAE" class="contaProposteEmendative"> </span></td>
+                            </tr>
+                            <tr class="normale" id="tr.id.1.1.position.20261118.1">
+                                <td align="center">
+                                    <span id="id.1.1.position.20261118.1" class="navigatore" />
+                                </td>
+                                <td>
+                                    <a href="&#xA;								getPropostaEmendativa.aspx?contenitorePortante=leg.19.eme.ac.3133&amp;tipoSeduta=0&amp;sedeEsame=null&amp;urnTestoRiferimento=urn:leg:19:3133:null:A:ass:null:null&amp;dataSeduta=null&amp;idPropostaEmendativa=1.1.&amp;position=20261118" rel="popup" title="pubblicata il 18/11/2026">1.1.</a>
+                                </td>
+                                <td>
+                                    <a href="https://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=deputati&amp;tipoDoc=schedaDeputato&amp;idLegislatura=19&amp;idPersona=307459&amp;webType=Normale">Fontana Ilaria</a> e altri</td>
+                                <td align="center" />
+                            </tr>
+                            <tr class="normale" id="tr.id.1.7.position.20261118.2">
+                                <td align="center">
+                                    <span id="id.1.7.position.20261118.2" class="navigatore" />
+                                </td>
+                                <td>
+                                    <a href="&#xA;								getPropostaEmendativa.aspx?contenitorePortante=leg.19.eme.ac.3133&amp;tipoSeduta=0&amp;sedeEsame=null&amp;urnTestoRiferimento=urn:leg:19:3133:null:A:ass:null:null&amp;dataSeduta=null&amp;idPropostaEmendativa=1.7.&amp;position=20261118" rel="popup" title="pubblicata il 18/11/2026">1.7.</a>
+                                    <span class="emendamentiIdentici">
+								(ident.
+								1.8.
+								)
+							</span>
+                                </td>
+                                <td>
+                                    <a href="https://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=deputati&amp;tipoDoc=schedaDeputato&amp;idLegislatura=19&amp;idPersona=307822&amp;webType=Normale">L'Abbate Patty</a>
+                                </td>
+                                <td align="center" />
+                            </tr>
+                            <tr class="normale" id="tr.id.1.8.position.20261118.3">
+                                <td align="center">
+                                    <span id="id.1.8.position.20261118.3" class="navigatore" />
+                                </td>
+                                <td>
+                                    <a href="&#xA;								getPropostaEmendativa.aspx?contenitorePortante=leg.19.eme.ac.3133&amp;tipoSeduta=0&amp;sedeEsame=null&amp;urnTestoRiferimento=urn:leg:19:3133:null:A:ass:null:null&amp;dataSeduta=null&amp;idPropostaEmendativa=1.8.&amp;position=20261118" rel="popup" title="pubblicata il 18/11/2026">1.8.</a>
+                                    <span class="emendamentiIdentici">
+								(ident.
+								1.7.
+								)
+							</span>
+                                </td>
+                                <td>
+                                    <a href="https://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=deputati&amp;tipoDoc=schedaDeputato&amp;idLegislatura=19&amp;idPersona=308893&amp;webType=Normale">Evi Eleonora</a>
+                                </td>
+                                <td align="center" />
+                            </tr>
+                            <tr class="normale" id="tr.id.1.9.position.20261118.4">
+                                <td align="center">
+                                    <span id="id.1.9.position.20261118.4" class="navigatore" />
+                                </td>
+                                <td>
+                                    <a href="&#xA;								getPropostaEmendativa.aspx?contenitorePortante=leg.19.eme.ac.3133&amp;tipoSeduta=0&amp;sedeEsame=null&amp;urnTestoRiferimento=urn:leg:19:3133:null:A:ass:null:null&amp;dataSeduta=null&amp;idPropostaEmendativa=1.9.&amp;position=20261118" rel="popup" title="pubblicata il 18/11/2026">1.9.</a>
+                                </td>
+                                <td>
+                                    <a href="https://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=deputati&amp;tipoDoc=schedaDeputato&amp;idLegislatura=19&amp;idPersona=307459&amp;webType=Normale">Fontana Ilaria</a> e altri</td>
+                                <td align="center" />
+                            </tr>
+                            <tr class="normale" id="tr.id.1.10.position.20261118.5">
+                                <td align="center">
+                                    <span id="id.1.10.position.20261118.5" class="navigatore" />
+                                </td>
+                                <td>
+                                    <a href="&#xA;								getPropostaEmendativa.aspx?contenitorePortante=leg.19.eme.ac.3133&amp;tipoSeduta=0&amp;sedeEsame=null&amp;urnTestoRiferimento=urn:leg:19:3133:null:A:ass:null:null&amp;dataSeduta=null&amp;idPropostaEmendativa=1.10.&amp;position=20261118" rel="popup" title="pubblicata il 18/11/2026">1.10.</a>
+                                </td>
+                                <td>
+                                    <a href="https://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=deputati&amp;tipoDoc=schedaDeputato&amp;idLegislatura=19&amp;idPersona=307822&amp;webType=Normale">L'Abbate Patty</a>
+                                </td>
+                                <td align="center" />
+                            </tr>
+                            <tr class="normale" id="tr.id.1.015.position.20261118.29">
+                                <td align="center">
+                                    <span id="id.1.015.position.20261118.29" class="navigatore" />
+                                </td>
+                                <td>
+                                    <a href="&#xA;								getPropostaEmendativa.aspx?contenitorePortante=leg.19.eme.ac.3133&amp;tipoSeduta=0&amp;sedeEsame=null&amp;urnTestoRiferimento=urn:leg:19:3133:null:A:ass:null:null&amp;dataSeduta=null&amp;idPropostaEmendativa=1.015.&amp;position=20261118" rel="popup" title="pubblicata il 18/11/2026">1.015.</a>
+                                </td>
+                                <td>
+                                    <a href="https://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=deputati&amp;tipoDoc=schedaDeputato&amp;idLegislatura=19&amp;idPersona=302080&amp;webType=Normale">Bonelli Angelo</a> e altri</td>
+                                <td align="center">
+                                    <span class="esitoInammissibile">inammissibile</span>
+                                </td>
+                            </tr>
+                            <tr class="normale" id="tr.id.2.300.position.20261118.34">
+                                <td align="center">
+                                    <span id="id.2.300.position.20261118.34" class="navigatore" />
+                                </td>
+                                <td>
+                                    <a href="&#xA;								getPropostaEmendativa.aspx?contenitorePortante=leg.19.eme.ac.3133&amp;tipoSeduta=0&amp;sedeEsame=null&amp;urnTestoRiferimento=urn:leg:19:3133:null:A:ass:null:null&amp;dataSeduta=null&amp;idPropostaEmendativa=2.300.&amp;position=20261118" rel="popup" title="pubblicata il 18/11/2026">2.300.</a>
+                                </td>
+                                <td>ex Art. 86 comma 4 bis</td>
+                                <td align="center">
+                                    <span class="esitoApprovato">approvato</span>
+                                </td>
+                            </tr>
+                            <tr class="normale" id="tr.id.0.2.54.1000.position.20261118.70">
+                                <td align="center">
+                                    <span id="id.0.2.54.1000.position.20261118.70" class="navigatore" />
+                                </td>
+                                <td>    <a href="&#xA;								getPropostaEmendativa.aspx?contenitorePortante=leg.19.eme.ac.3133&amp;tipoSeduta=0&amp;sedeEsame=null&amp;urnTestoRiferimento=urn:leg:19:3133:null:A:ass:null:null&amp;dataSeduta=null&amp;idPropostaEmendativa=0.2.54.1000.&amp;position=20261118" rel="popup" title="pubblicata il 18/11/2026">0.2.54.1000.</a></td>
+                                <td>La Commissione</td>
+                                <td align="center">
+                                    <span class="esitoApprovato">approvato</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
