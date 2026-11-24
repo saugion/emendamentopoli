@@ -5,7 +5,8 @@ citazione "Senato della Repubblica - dati.senato.it"). La classe osr:Emendamento
 non espone la data di presentazione, quindi si prendono gli emendamenti piu' recenti
 (id numerico decrescente, che segue l'ordine di presentazione) e la data viene letta
 dal testo Akoma Ntoso di ciascuno. Con data_fine si scarica un intero intervallo
-(es. backfill di un mese): il limite deve coprire tutti gli emendamenti del periodo.
+(es. backfill di un mese): la scansione SPARQL procede a pagine da PAGINA_SPARQL con
+early stop quando una data letta e' precedente a data_inizio.
 """
 
 import asyncio
@@ -23,8 +24,9 @@ from .valutazione import Valutazione, salva_valutazioni, valuta_emendamento
 SPARQL_ENDPOINT = "https://dati.senato.it/sparql"
 UA = "curl/8.5.0"  # CloudFront accetta solo user-agent curl-like su questi path
 FUSO_ORARIO = "Europe/Rome"
-CONCORRENZA_ARRICCHIMENTO = 25
+CONCORRENZA_ARRICHIMENTO = 25
 CONCORRENZA_VALUTAZIONE = 10
+PAGINA_SPARQL = 1000
 
 
 class EmendamentiGiornalieriInput(BaseModel):
@@ -67,7 +69,7 @@ class EmendamentiGiornalieriOutput(BaseModel):
     errori_valutazione: list[str]
 
 
-def query_metadati_recenti(legislatura: int, limite: int) -> str:
+def query_metadati_recenti(legislatura: int, limite: int, offset: int = 0) -> str:
     return (
         "PREFIX osr: <http://dati.senato.it/osr/>\n"
         "SELECT ?eme ?numero ?tipo ?flagCom ?oggetto ?urlTesto ?urlTestoXml WHERE {\n"
@@ -82,7 +84,7 @@ def query_metadati_recenti(legislatura: int, limite: int) -> str:
         "}\n"
         # id a 7 cifre in legislatura XIX: l'ordine lessicografico DESC e' anche numerico DESC
         "ORDER BY DESC(?eme)\n"
-        f"LIMIT {limite}"
+        f"LIMIT {limite} OFFSET {offset}"
     )
 
 
@@ -151,13 +153,13 @@ async def data_ieri() -> str:
 
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=120), retry_policy_max_attempts=3)
-async def scarica_metadati_recenti(legislatura: int, limite: int) -> list[Emendamento]:
+async def scarica_pagina_metadati(legislatura: int, limite_pagina: int, offset: int) -> list[Emendamento]:
     import httpx
 
     url = (
         SPARQL_ENDPOINT
         + "?query="
-        + quote(query_metadati_recenti(legislatura, limite))
+        + quote(query_metadati_recenti(legislatura, limite_pagina, offset))
         + "&format=application%2Fsparql-results%2Bjson"
     )
     async with httpx.AsyncClient(
@@ -248,23 +250,38 @@ class EmendamentiGiornalieriWorkflow:
     async def run(self, input: EmendamentiGiornalieriInput) -> EmendamentiGiornalieriOutput:
         data_inizio = input.data if input.data else await data_ieri()
         data_fine = input.data_fine if input.data_fine else data_inizio
-        metadati = await scarica_metadati_recenti(input.legislatura, input.limite)
-        sem_arricchimento = asyncio.Semaphore(CONCORRENZA_ARRICCHIMENTO)
+        sem_arricchimento = asyncio.Semaphore(CONCORRENZA_ARRICHIMENTO)
 
         async def _arricchisci(m: Emendamento) -> Emendamento:
             async with sem_arricchimento:
                 return await arricchisci_emendamento(m)
 
-        risultati = await asyncio.gather(
-            *[_arricchisci(m) for m in metadati],
-            return_exceptions=True,
-        )
-        errori = [
-            f"{m.id}: {type(r).__name__}: {r}"
-            for m, r in zip(metadati, risultati)
-            if isinstance(r, BaseException)
-        ]
-        analizzati = [r for r in risultati if not isinstance(r, BaseException)]
+        metadati: list[Emendamento] = []
+        analizzati: list[Emendamento] = []
+        errori: list[str] = []
+        offset = 0
+        while len(metadati) < input.limite:
+            pagina = await scarica_pagina_metadati(
+                input.legislatura, min(PAGINA_SPARQL, input.limite - len(metadati)), offset
+            )
+            if not pagina:
+                break
+            metadati.extend(pagina)
+            offset += len(pagina)
+            risultati = await asyncio.gather(
+                *[_arricchisci(m) for m in pagina],
+                return_exceptions=True,
+            )
+            errori.extend(
+                f"{m.id}: {type(r).__name__}: {r}"
+                for m, r in zip(pagina, risultati)
+                if isinstance(r, BaseException)
+            )
+            pagina_ok = [r for r in risultati if not isinstance(r, BaseException)]
+            analizzati.extend(pagina_ok)
+            date = [e.data for e in pagina_ok if e.data]
+            if date and min(date) < data_inizio:
+                break
         nel_periodo = [e for e in analizzati if e.data and data_inizio <= e.data <= data_fine]
         salvati = await salva_emendamenti(nel_periodo) if nel_periodo else 0
         sem_valutazione = asyncio.Semaphore(CONCORRENZA_VALUTAZIONE)
