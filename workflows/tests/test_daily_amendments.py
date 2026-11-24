@@ -1,6 +1,7 @@
 import mistralai.workflows as workflows
 
 from amendments_worker.workflows import daily_amendments as mod
+from amendments_worker.workflows import ingest
 from amendments_worker.workflows.evaluation import Score, Evaluation
 
 DATE = "2026-01-10"
@@ -19,10 +20,6 @@ def _eme(n: int) -> mod.Amendment:
         text_url=f"http://www.senato.it/emend/{n}",
         text_xml_url=f"http://www.senato.it/emend/{n}.xml",
     )
-
-
-async def _yesterday() -> str:
-    return DATE
 
 
 async def _page(legislature: int, page_limit: int, offset: int) -> list[mod.Amendment]:
@@ -67,57 +64,52 @@ async def _save_evaluations(evaluations: list[Evaluation]) -> int:
     return len(evaluations)
 
 
-def _patch(monkeypatch) -> None:
-    monkeypatch.setattr(mod, "yesterday", _yesterday)
-    monkeypatch.setattr(mod, "fetch_metadata_page", _page)
-    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map_empty)
-    monkeypatch.setattr(mod, "enrich_amendment", _enrich)
-    monkeypatch.setattr(mod, "save_amendments", _save)
-    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
-    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
+def _deps(
+    fetch_page=_page,
+    enrich=_enrich,
+    saved_map=_saved_map_empty,
+    save=_save,
+    evaluate=_evaluate,
+    save_evaluations=_save_evaluations,
+) -> ingest.IngestDeps:
+    return ingest.IngestDeps(
+        fetch_page=fetch_page,
+        enrich=enrich,
+        saved_map=saved_map,
+        save=save,
+        evaluate=evaluate,
+        save_evaluations=save_evaluations,
+    )
 
 
-async def test_daily_flow(monkeypatch) -> None:
+async def test_daily_flow() -> None:
     SAVED.clear()
     EVALUATED.clear()
-    _patch(monkeypatch)
-    result = await workflows.execute_workflow(
-        mod.DailyAmendmentsWorkflow,
-        params=mod.DailyAmendmentsInput(legislature=19, limit=10),
-    )
-    d = result if isinstance(result, dict) else result.model_dump()
-    assert d["date"] == DATE
-    assert d["metadata_fetched"] == 3
-    assert d["analyzed"] == 2
-    assert d["found"] == 1
-    assert d["saved"] == 1
-    assert d["evaluated"] == 1
-    assert d["ids"] == ["http://dati.senato.it/emendamento/1"]
-    assert len(d["errors"]) == 1
-    assert d["evaluation_errors"] == []
+    report = await ingest.ingest_period(DATE, DATE, 19, 10, _deps())
+    assert report.metadata_fetched == 3
+    assert report.analyzed == 2
+    assert report.found == 1
+    assert report.saved == 1
+    assert report.evaluated == 1
+    assert report.ids == ["http://dati.senato.it/emendamento/1"]
+    assert len(report.errors) == 1
+    assert report.evaluation_errors == []
     assert len(SAVED) == 1
     assert [v.amendment_id for v in EVALUATED] == ["http://dati.senato.it/emendamento/1"]
 
 
-async def test_explicit_date_and_no_results(monkeypatch) -> None:
+async def test_explicit_date_and_no_results() -> None:
     SAVED.clear()
     EVALUATED.clear()
-    _patch(monkeypatch)
-    result = await workflows.execute_workflow(
-        mod.DailyAmendmentsWorkflow,
-        params=mod.DailyAmendmentsInput(date="2020-01-01", legislature=19, limit=10),
-    )
-    d = result if isinstance(result, dict) else result.model_dump()
-    assert d["date"] == "2020-01-01"
-    assert d["end_date"] == "2020-01-01"
-    assert d["found"] == 0
-    assert d["saved"] == 0
-    assert d["evaluated"] == 0
+    report = await ingest.ingest_period("2020-01-01", "2020-01-01", 19, 10, _deps())
+    assert report.found == 0
+    assert report.saved == 0
+    assert report.evaluated == 0
     assert SAVED == []
     assert EVALUATED == []
 
 
-async def test_multi_day_period(monkeypatch) -> None:
+async def test_multi_day_period() -> None:
     SAVED.clear()
     EVALUATED.clear()
 
@@ -128,34 +120,21 @@ async def test_multi_day_period(monkeypatch) -> None:
         eme.text = "text"
         return eme
 
-    monkeypatch.setattr(mod, "yesterday", _yesterday)
-    monkeypatch.setattr(mod, "fetch_metadata_page", _page)
-    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map_empty)
-    monkeypatch.setattr(mod, "enrich_amendment", _enrich_range)
-    monkeypatch.setattr(mod, "save_amendments", _save)
-    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
-    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
-    result = await workflows.execute_workflow(
-        mod.DailyAmendmentsWorkflow,
-        params=mod.DailyAmendmentsInput(
-            date=DATE, end_date="2026-01-11", legislature=19, limit=10
-        ),
+    report = await ingest.ingest_period(
+        DATE, "2026-01-11", 19, 10, _deps(enrich=_enrich_range)
     )
-    d = result if isinstance(result, dict) else result.model_dump()
-    assert d["date"] == DATE
-    assert d["end_date"] == "2026-01-11"
-    assert d["found"] == 2
-    assert d["saved"] == 2
-    assert d["evaluated"] == 2
-    assert d["ids"] == [
+    assert report.found == 2
+    assert report.saved == 2
+    assert report.evaluated == 2
+    assert report.ids == [
         "http://dati.senato.it/emendamento/1",
         "http://dati.senato.it/emendamento/2",
     ]
-    assert d["errors"] == []
-    assert d["evaluation_errors"] == []
+    assert report.errors == []
+    assert report.evaluation_errors == []
 
 
-async def test_pagination_with_early_stop(monkeypatch) -> None:
+async def test_pagination_with_early_stop() -> None:
     SAVED.clear()
     EVALUATED.clear()
     pages = [
@@ -174,25 +153,16 @@ async def test_pagination_with_early_stop(monkeypatch) -> None:
         eme.text = "text"
         return eme
 
-    monkeypatch.setattr(mod, "yesterday", _yesterday)
-    monkeypatch.setattr(mod, "fetch_metadata_page", _pages)
-    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map_empty)
-    monkeypatch.setattr(mod, "enrich_amendment", _enrich_pages)
-    monkeypatch.setattr(mod, "save_amendments", _save)
-    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
-    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
-    result = await workflows.execute_workflow(
-        mod.DailyAmendmentsWorkflow,
-        params=mod.DailyAmendmentsInput(date=DATE, legislature=19, limit=10),
+    report = await ingest.ingest_period(
+        DATE, DATE, 19, 10, _deps(fetch_page=_pages, enrich=_enrich_pages)
     )
-    d = result if isinstance(result, dict) else result.model_dump()
-    assert d["metadata_fetched"] == 4
-    assert d["analyzed"] == 4
-    assert d["found"] == 1
-    assert d["ids"] == ["http://dati.senato.it/emendamento/3"]
+    assert report.metadata_fetched == 4
+    assert report.analyzed == 4
+    assert report.found == 1
+    assert report.ids == ["http://dati.senato.it/emendamento/3"]
 
 
-async def test_skips_already_saved(monkeypatch) -> None:
+async def test_skips_already_saved() -> None:
     SAVED.clear()
     EVALUATED.clear()
     seen: list[str] = []
@@ -207,29 +177,20 @@ async def test_skips_already_saved(monkeypatch) -> None:
         eme.text = "text"
         return eme
 
-    monkeypatch.setattr(mod, "yesterday", _yesterday)
-    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map)
-    monkeypatch.setattr(mod, "fetch_metadata_page", _page)
-    monkeypatch.setattr(mod, "enrich_amendment", _enrich_skip)
-    monkeypatch.setattr(mod, "save_amendments", _save)
-    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
-    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
-    result = await workflows.execute_workflow(
-        mod.DailyAmendmentsWorkflow,
-        params=mod.DailyAmendmentsInput(date=DATE, legislature=19, limit=10),
+    report = await ingest.ingest_period(
+        DATE, DATE, 19, 10, _deps(saved_map=_saved_map, enrich=_enrich_skip)
     )
-    d = result if isinstance(result, dict) else result.model_dump()
     assert seen == [
         "http://dati.senato.it/emendamento/2",
         "http://dati.senato.it/emendamento/3",
     ]
-    assert d["metadata_fetched"] == 3
-    assert d["analyzed"] == 2
-    assert d["found"] == 0
-    assert d["saved"] == 0
+    assert report.metadata_fetched == 3
+    assert report.analyzed == 2
+    assert report.found == 0
+    assert report.saved == 0
 
 
-async def test_backfills_missing_signatories(monkeypatch) -> None:
+async def test_backfills_missing_signatories() -> None:
     SAVED.clear()
     EVALUATED.clear()
     seen: list[str] = []
@@ -247,22 +208,13 @@ async def test_backfills_missing_signatories(monkeypatch) -> None:
         eme.signatory_uris = ["https://www.senato.it/leg/19/BGT/Schede/Attsen/00000407.htm"]
         return eme
 
-    monkeypatch.setattr(mod, "yesterday", _yesterday)
-    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map)
-    monkeypatch.setattr(mod, "fetch_metadata_page", _page)
-    monkeypatch.setattr(mod, "enrich_amendment", _enrich_backfill)
-    monkeypatch.setattr(mod, "save_amendments", _save)
-    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
-    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
-    result = await workflows.execute_workflow(
-        mod.DailyAmendmentsWorkflow,
-        params=mod.DailyAmendmentsInput(date=DATE, legislature=19, limit=10),
+    report = await ingest.ingest_period(
+        DATE, DATE, 19, 10, _deps(saved_map=_saved_map, enrich=_enrich_backfill)
     )
-    d = result if isinstance(result, dict) else result.model_dump()
     # eme/1 is re-enriched (missing firmatari) and saved again, but not re-evaluated
     assert "http://dati.senato.it/emendamento/1" in seen
-    assert d["saved"] == 3
-    assert d["evaluated"] == 2
+    assert report.saved == 3
+    assert report.evaluated == 2
     assert SAVED[0].signatories == ["Rossi"]
     assert [v.amendment_id for v in EVALUATED] == [
         "http://dati.senato.it/emendamento/2",
@@ -270,7 +222,7 @@ async def test_backfills_missing_signatories(monkeypatch) -> None:
     ]
 
 
-async def test_incremental_save_per_page(monkeypatch) -> None:
+async def test_incremental_save_per_page() -> None:
     SAVED.clear()
     EVALUATED.clear()
     save_calls: list[int] = []
@@ -293,25 +245,16 @@ async def test_incremental_save_per_page(monkeypatch) -> None:
         save_calls.append(len(amendments))
         return await _save(amendments)
 
-    monkeypatch.setattr(mod, "yesterday", _yesterday)
-    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map_empty)
-    monkeypatch.setattr(mod, "fetch_metadata_page", _pages)
-    monkeypatch.setattr(mod, "enrich_amendment", _enrich_pages)
-    monkeypatch.setattr(mod, "save_amendments", _save_counted)
-    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
-    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
-    result = await workflows.execute_workflow(
-        mod.DailyAmendmentsWorkflow,
-        params=mod.DailyAmendmentsInput(date=DATE, legislature=19, limit=10),
+    report = await ingest.ingest_period(
+        DATE, DATE, 19, 10, _deps(fetch_page=_pages, enrich=_enrich_pages, save=_save_counted)
     )
-    d = result if isinstance(result, dict) else result.model_dump()
     assert save_calls == [1, 1]
-    assert d["metadata_fetched"] == 3
-    assert d["analyzed"] == 3
-    assert d["found"] == 2
-    assert d["saved"] == 2
-    assert d["evaluated"] == 2
-    assert d["ids"] == [
+    assert report.metadata_fetched == 3
+    assert report.analyzed == 3
+    assert report.found == 2
+    assert report.saved == 2
+    assert report.evaluated == 2
+    assert report.ids == [
         "http://dati.senato.it/emendamento/1",
         "http://dati.senato.it/emendamento/2",
     ]
@@ -319,7 +262,7 @@ async def test_incremental_save_per_page(monkeypatch) -> None:
     assert len(EVALUATED) == 2
 
 
-async def test_page_failure_is_not_fatal(monkeypatch) -> None:
+async def test_page_failure_is_not_fatal() -> None:
     SAVED.clear()
     EVALUATED.clear()
     calls = 0
@@ -337,24 +280,15 @@ async def test_page_failure_is_not_fatal(monkeypatch) -> None:
         eme.text = "text"
         return eme
 
-    monkeypatch.setattr(mod, "yesterday", _yesterday)
-    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map_empty)
-    monkeypatch.setattr(mod, "fetch_metadata_page", _pages_fail)
-    monkeypatch.setattr(mod, "enrich_amendment", _enrich_one)
-    monkeypatch.setattr(mod, "save_amendments", _save)
-    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
-    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
-    result = await workflows.execute_workflow(
-        mod.DailyAmendmentsWorkflow,
-        params=mod.DailyAmendmentsInput(date=DATE, legislature=19, limit=10),
+    report = await ingest.ingest_period(
+        DATE, DATE, 19, 10, _deps(fetch_page=_pages_fail, enrich=_enrich_one)
     )
-    d = result if isinstance(result, dict) else result.model_dump()
-    assert d["metadata_fetched"] == 1
-    assert d["found"] == 1
-    assert d["saved"] == 1
-    assert d["ids"] == ["http://dati.senato.it/emendamento/1"]
-    assert len(d["errors"]) == 1
-    assert "fetch_metadata_page" in d["errors"][0]
+    assert report.metadata_fetched == 1
+    assert report.found == 1
+    assert report.saved == 1
+    assert report.ids == ["http://dati.senato.it/emendamento/1"]
+    assert len(report.errors) == 1
+    assert "fetch_metadata_page" in report.errors[0]
 
 
 def test_inconsistent_period() -> None:
@@ -362,3 +296,30 @@ def test_inconsistent_period() -> None:
 
     with pytest.raises(ValueError):
         mod.DailyAmendmentsInput(date="2026-11-30", end_date="2026-11-01")
+
+
+async def test_workflow_run_smoke(monkeypatch) -> None:
+    SAVED.clear()
+    EVALUATED.clear()
+
+    async def _yesterday() -> str:
+        return DATE
+
+    monkeypatch.setattr(mod, "yesterday", _yesterday)
+    monkeypatch.setattr(mod, "fetch_metadata_page", _page)
+    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map_empty)
+    monkeypatch.setattr(mod, "enrich_amendment", _enrich)
+    monkeypatch.setattr(mod, "save_amendments", _save)
+    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
+    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
+    result = await workflows.execute_workflow(
+        mod.DailyAmendmentsWorkflow,
+        params=mod.DailyAmendmentsInput(legislature=19, limit=10),
+    )
+    d = result if isinstance(result, dict) else result.model_dump()
+    assert d["date"] == DATE
+    assert d["found"] == 1
+    assert d["saved"] == 1
+    assert d["evaluated"] == 1
+    assert d["ids"] == ["http://dati.senato.it/emendamento/1"]
+    assert len(d["errors"]) == 1
