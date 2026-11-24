@@ -101,16 +101,6 @@ def score_rows(evaluation_id: int, v: "Evaluation") -> list[dict]:
     ]
 
 
-async def saved_amendments_map(legislature: int) -> dict[str, dict[str, str | None]]:
-    base, headers = _config()
-    url = (
-        f"{base}/rest/v1/emendamenti"
-        f"?select=id,data,firmatari&legislatura=eq.{legislature}&limit=100000"
-    )
-    rows = await _get(base, headers, url)
-    return {r["id"]: {"data": r["data"], "firmatari": r["firmatari"]} for r in rows}
-
-
 async def upsert_amendments(amendments: list[Amendment]) -> int:
     base, headers = _config()
     rows = [amendment_row(a) for a in amendments]
