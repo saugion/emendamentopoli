@@ -1,0 +1,553 @@
+{
+  "head": {
+    "link": [],
+    "vars": [
+      "aic",
+      "identifier",
+      "tipo",
+      "titolo",
+      "data",
+      "concluso",
+      "modified",
+      "relation",
+      "primo",
+      "seduta1",
+      "altri",
+      "subjects"
+    ]
+  },
+  "results": {
+    "distinct": false,
+    "ordered": true,
+    "bindings": [
+      {
+        "aic": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/aic.rdf/aic9_00362_A_009_19"
+        },
+        "identifier": {
+          "type": "literal",
+          "value": "9/00362-A/009"
+        },
+        "tipo": {
+          "type": "literal",
+          "value": "ODG - ORDINE DEL GIORNO IN ASSEMBLEA"
+        },
+        "titolo": {
+          "type": "literal",
+          "value": "ODG IN ASSEMBLEA SU P.D.L. 9/00362-A/009 presentata da PAVANELLI EMMA (MOVIMENTO 5 STELLE) in data 21/10/2026"
+        },
+        "data": {
+          "type": "literal",
+          "value": "20261021"
+        },
+        "concluso": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        },
+        "modified": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "value": "2026-11-24T13:32:32Z"
+        },
+        "relation": {
+          "type": "literal",
+          "value": "http://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&tipoDoc=sicross&idlegislatura=19&ramo=camera&stile=6&idDocumento=9/00362-A/009"
+        },
+        "primo": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d308221_19"
+        },
+        "altri": {
+          "type": "literal",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d306352_19 http://dati.camera.it/ocd/deputato.rdf/d308824_19 http://dati.camera.it/ocd/deputato.rdf/d309140_19"
+        },
+        "subjects": {
+          "type": "literal",
+          "value": "http://eurovoc.europa.eu/1439 http://eurovoc.europa.eu/2459 http://eurovoc.europa.eu/2497 http://eurovoc.europa.eu/2712 http://eurovoc.europa.eu/2840 http://eurovoc.europa.eu/3082 http://eurovoc.europa.eu/5204 http://eurovoc.europa.eu/6544 http://eurovoc.europa.eu/6783 http://eurovoc.europa.eu/800 http://eurovoc.europa.eu/814 http://eurovoc.europa.eu/878"
+        }
+      },
+      {
+        "aic": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/aic.rdf/aic9_00362_A_011_19"
+        },
+        "identifier": {
+          "type": "literal",
+          "value": "9/00362-A/011"
+        },
+        "tipo": {
+          "type": "literal",
+          "value": "ODG - ORDINE DEL GIORNO IN ASSEMBLEA"
+        },
+        "titolo": {
+          "type": "literal",
+          "value": "ODG IN ASSEMBLEA SU P.D.L. 9/00362-A/011 presentata da PANDOLFO ALBERTO (PARTITO DEMOCRATICO - ITALIA DEMOCRATICA E PROGRESSISTA) in data 21/10/2026"
+        },
+        "data": {
+          "type": "literal",
+          "value": "20261021"
+        },
+        "concluso": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        },
+        "modified": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "value": "2026-11-24T13:32:32Z"
+        },
+        "relation": {
+          "type": "literal",
+          "value": "http://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&tipoDoc=sicross&idlegislatura=19&ramo=camera&stile=6&idDocumento=9/00362-A/011"
+        },
+        "primo": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d309220_19"
+        },
+        "altri": {
+          "type": "literal",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d302746_19 http://dati.camera.it/ocd/deputato.rdf/d302856_19 http://dati.camera.it/ocd/deputato.rdf/d308783_19 http://dati.camera.it/ocd/deputato.rdf/d308932_19"
+        },
+        "subjects": {
+          "type": "literal",
+          "value": "http://eurovoc.europa.eu/1558 http://eurovoc.europa.eu/27 http://eurovoc.europa.eu/2784 http://eurovoc.europa.eu/3213 http://eurovoc.europa.eu/5541 http://eurovoc.europa.eu/712"
+        }
+      },
+      {
+        "aic": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/aic.rdf/aic9_00362_A_007_19"
+        },
+        "identifier": {
+          "type": "literal",
+          "value": "9/00362-A/007"
+        },
+        "tipo": {
+          "type": "literal",
+          "value": "ODG - ORDINE DEL GIORNO IN ASSEMBLEA"
+        },
+        "titolo": {
+          "type": "literal",
+          "value": "ODG IN ASSEMBLEA SU P.D.L. 9/00362-A/007 presentata da CAPPELLETTI ENRICO (MOVIMENTO 5 STELLE) in data 21/10/2026"
+        },
+        "data": {
+          "type": "literal",
+          "value": "20261021"
+        },
+        "concluso": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        },
+        "modified": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "value": "2026-11-24T13:32:33Z"
+        },
+        "relation": {
+          "type": "literal",
+          "value": "http://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&tipoDoc=sicross&idlegislatura=19&ramo=camera&stile=6&idDocumento=9/00362-A/007"
+        },
+        "primo": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d306352_19"
+        },
+        "altri": {
+          "type": "literal",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d308221_19 http://dati.camera.it/ocd/deputato.rdf/d308824_19 http://dati.camera.it/ocd/deputato.rdf/d309140_19"
+        },
+        "subjects": {
+          "type": "literal",
+          "value": "http://eurovoc.europa.eu/1161 http://eurovoc.europa.eu/1223 http://eurovoc.europa.eu/138 http://eurovoc.europa.eu/2278 http://eurovoc.europa.eu/2527 http://eurovoc.europa.eu/3139 http://eurovoc.europa.eu/3885 http://eurovoc.europa.eu/4656 http://eurovoc.europa.eu/4809"
+        }
+      },
+      {
+        "aic": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/aic.rdf/aic9_00362_A_020_19"
+        },
+        "identifier": {
+          "type": "literal",
+          "value": "9/00362-A/020"
+        },
+        "tipo": {
+          "type": "literal",
+          "value": "ODG - ORDINE DEL GIORNO IN ASSEMBLEA"
+        },
+        "titolo": {
+          "type": "literal",
+          "value": "ODG IN ASSEMBLEA SU P.D.L. 9/00362-A/020 presentata da GRIMALDI MARCO (ALLEANZA VERDI E SINISTRA) in data 21/10/2026"
+        },
+        "data": {
+          "type": "literal",
+          "value": "20261021"
+        },
+        "concluso": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        },
+        "modified": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "value": "2026-11-24T13:32:34Z"
+        },
+        "relation": {
+          "type": "literal",
+          "value": "http://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&tipoDoc=sicross&idlegislatura=19&ramo=camera&stile=6&idDocumento=9/00362-A/020"
+        },
+        "primo": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d308810_19"
+        },
+        "altri": {
+          "type": "literal",
+          "value": ""
+        },
+        "subjects": {
+          "type": "literal",
+          "value": "http://eurovoc.europa.eu/1400 http://eurovoc.europa.eu/143 http://eurovoc.europa.eu/1567 http://eurovoc.europa.eu/1684 http://eurovoc.europa.eu/1687 http://eurovoc.europa.eu/1696 http://eurovoc.europa.eu/2504 http://eurovoc.europa.eu/3193 http://eurovoc.europa.eu/3581 http://eurovoc.europa.eu/416 http://eurovoc.europa.eu/614 http://eurovoc.europa.eu/75 http://eurovoc.europa.eu/828"
+        }
+      },
+      {
+        "aic": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/aic.rdf/aic9_03076_008_19"
+        },
+        "identifier": {
+          "type": "literal",
+          "value": "9/03076/008"
+        },
+        "tipo": {
+          "type": "literal",
+          "value": "ODG - ORDINE DEL GIORNO IN ASSEMBLEA"
+        },
+        "titolo": {
+          "type": "literal",
+          "value": "ODG IN ASSEMBLEA SU P.D.L. 9/03076/008 presentata da COLOMBO BEATRIZ (FRATELLI D'ITALIA) in data 21/10/2026"
+        },
+        "data": {
+          "type": "literal",
+          "value": "20261021"
+        },
+        "concluso": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        },
+        "modified": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "value": "2026-11-24T13:32:35Z"
+        },
+        "relation": {
+          "type": "literal",
+          "value": "http://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&tipoDoc=sicross&idlegislatura=19&ramo=camera&stile=6&idDocumento=9/03076/008"
+        },
+        "primo": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d308926_19"
+        },
+        "altri": {
+          "type": "literal",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d307511_19 http://dati.camera.it/ocd/deputato.rdf/d307573_19"
+        },
+        "subjects": {
+          "type": "literal",
+          "value": "http://eurovoc.europa.eu/2479 http://eurovoc.europa.eu/2836 http://eurovoc.europa.eu/3057 http://eurovoc.europa.eu/3276 http://eurovoc.europa.eu/4075 http://eurovoc.europa.eu/4076 http://eurovoc.europa.eu/413 http://eurovoc.europa.eu/4176 http://eurovoc.europa.eu/442 http://eurovoc.europa.eu/5309 http://eurovoc.europa.eu/6628 http://eurovoc.europa.eu/778"
+        }
+      },
+      {
+        "aic": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/aic.rdf/aic9_03076_009_19"
+        },
+        "identifier": {
+          "type": "literal",
+          "value": "9/03076/009"
+        },
+        "tipo": {
+          "type": "literal",
+          "value": "ODG - ORDINE DEL GIORNO IN ASSEMBLEA"
+        },
+        "titolo": {
+          "type": "literal",
+          "value": "ODG IN ASSEMBLEA SU P.D.L. 9/03076/009 presentata da DE PALMA VITO (FORZA ITALIA - BERLUSCONI PRESIDENTE - PPE) in data 21/10/2026"
+        },
+        "data": {
+          "type": "literal",
+          "value": "20261021"
+        },
+        "concluso": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        },
+        "modified": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "value": "2026-11-24T13:32:35Z"
+        },
+        "relation": {
+          "type": "literal",
+          "value": "http://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&tipoDoc=sicross&idlegislatura=19&ramo=camera&stile=6&idDocumento=9/03076/009"
+        },
+        "primo": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d308806_19"
+        },
+        "altri": {
+          "type": "literal",
+          "value": ""
+        },
+        "subjects": {
+          "type": "literal",
+          "value": "http://eurovoc.europa.eu/1018 http://eurovoc.europa.eu/2483 http://eurovoc.europa.eu/2868 http://eurovoc.europa.eu/3057 http://eurovoc.europa.eu/3330 http://eurovoc.europa.eu/35 http://eurovoc.europa.eu/4075 http://eurovoc.europa.eu/516 http://eurovoc.europa.eu/659 http://eurovoc.europa.eu/677 http://eurovoc.europa.eu/922"
+        }
+      },
+      {
+        "aic": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/aic.rdf/aic9_03076_011_19"
+        },
+        "identifier": {
+          "type": "literal",
+          "value": "9/03076/011"
+        },
+        "tipo": {
+          "type": "literal",
+          "value": "ODG - ORDINE DEL GIORNO IN ASSEMBLEA"
+        },
+        "titolo": {
+          "type": "literal",
+          "value": "ODG IN ASSEMBLEA SU P.D.L. 9/03076/011 presentata da BRAGA CHIARA (PARTITO DEMOCRATICO - ITALIA DEMOCRATICA E PROGRESSISTA) in data 21/10/2026"
+        },
+        "data": {
+          "type": "literal",
+          "value": "20261021"
+        },
+        "concluso": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        },
+        "modified": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "value": "2026-11-24T13:32:35Z"
+        },
+        "relation": {
+          "type": "literal",
+          "value": "http://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&tipoDoc=sicross&idlegislatura=19&ramo=camera&stile=6&idDocumento=9/03076/011"
+        },
+        "primo": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d302754_19"
+        },
+        "altri": {
+          "type": "literal",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d308804_19 http://dati.camera.it/ocd/deputato.rdf/d308834_19 http://dati.camera.it/ocd/deputato.rdf/d308893_19 http://dati.camera.it/ocd/deputato.rdf/d308894_19"
+        },
+        "subjects": {
+          "type": "literal",
+          "value": "http://eurovoc.europa.eu/3057 http://eurovoc.europa.eu/4075"
+        }
+      },
+      {
+        "aic": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/aic.rdf/aic9_00362_A_010_19"
+        },
+        "identifier": {
+          "type": "literal",
+          "value": "9/00362-A/010"
+        },
+        "tipo": {
+          "type": "literal",
+          "value": "ODG - ORDINE DEL GIORNO IN ASSEMBLEA"
+        },
+        "titolo": {
+          "type": "literal",
+          "value": "ODG IN ASSEMBLEA SU P.D.L. 9/00362-A/010 presentata da APPENDINO CHIARA (MOVIMENTO 5 STELLE) in data 21/10/2026"
+        },
+        "data": {
+          "type": "literal",
+          "value": "20261021"
+        },
+        "concluso": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        },
+        "modified": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "value": "2026-11-24T13:32:52Z"
+        },
+        "relation": {
+          "type": "literal",
+          "value": "http://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&tipoDoc=sicross&idlegislatura=19&ramo=camera&stile=6&idDocumento=9/00362-A/010"
+        },
+        "primo": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d308824_19"
+        },
+        "altri": {
+          "type": "literal",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d306352_19 http://dati.camera.it/ocd/deputato.rdf/d308221_19 http://dati.camera.it/ocd/deputato.rdf/d309140_19"
+        },
+        "subjects": {
+          "type": "literal",
+          "value": "http://eurovoc.europa.eu/1074 http://eurovoc.europa.eu/13 http://eurovoc.europa.eu/2712 http://eurovoc.europa.eu/2794 http://eurovoc.europa.eu/2840 http://eurovoc.europa.eu/3181 http://eurovoc.europa.eu/5204 http://eurovoc.europa.eu/5315 http://eurovoc.europa.eu/6544 http://eurovoc.europa.eu/659 http://eurovoc.europa.eu/677 http://eurovoc.europa.eu/814"
+        }
+      },
+      {
+        "aic": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/aic.rdf/aic9_00362_A_013_19"
+        },
+        "identifier": {
+          "type": "literal",
+          "value": "9/00362-A/013"
+        },
+        "tipo": {
+          "type": "literal",
+          "value": "ODG - ORDINE DEL GIORNO IN ASSEMBLEA"
+        },
+        "titolo": {
+          "type": "literal",
+          "value": "ODG IN ASSEMBLEA SU P.D.L. 9/00362-A/013 presentata da DI SANZO CHRISTIAN DIEGO (PARTITO DEMOCRATICO - ITALIA DEMOCRATICA E PROGRESSISTA) in data 21/10/2026"
+        },
+        "data": {
+          "type": "literal",
+          "value": "20261021"
+        },
+        "concluso": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        },
+        "modified": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "value": "2026-11-24T13:32:53Z"
+        },
+        "relation": {
+          "type": "literal",
+          "value": "http://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&tipoDoc=sicross&idlegislatura=19&ramo=camera&stile=6&idDocumento=9/00362-A/013"
+        },
+        "primo": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d308783_19"
+        },
+        "altri": {
+          "type": "literal",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d302746_19 http://dati.camera.it/ocd/deputato.rdf/d302856_19 http://dati.camera.it/ocd/deputato.rdf/d308932_19 http://dati.camera.it/ocd/deputato.rdf/d309220_19"
+        },
+        "subjects": {
+          "type": "literal",
+          "value": "http://eurovoc.europa.eu/2944 http://eurovoc.europa.eu/3173 http://eurovoc.europa.eu/4098 http://eurovoc.europa.eu/4272 http://eurovoc.europa.eu/5599"
+        }
+      },
+      {
+        "aic": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/aic.rdf/aic9_03076_003_19"
+        },
+        "identifier": {
+          "type": "literal",
+          "value": "9/03076/003"
+        },
+        "tipo": {
+          "type": "literal",
+          "value": "ODG - ORDINE DEL GIORNO IN ASSEMBLEA"
+        },
+        "titolo": {
+          "type": "literal",
+          "value": "ODG IN ASSEMBLEA SU P.D.L. 9/03076/003 presentata da TUCCI RICCARDO (MOVIMENTO 5 STELLE) in data 21/10/2026"
+        },
+        "data": {
+          "type": "literal",
+          "value": "20261021"
+        },
+        "concluso": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        },
+        "modified": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "value": "2026-11-24T13:32:54Z"
+        },
+        "relation": {
+          "type": "literal",
+          "value": "http://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&tipoDoc=sicross&idlegislatura=19&ramo=camera&stile=6&idDocumento=9/03076/003"
+        },
+        "primo": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d307726_19"
+        },
+        "altri": {
+          "type": "literal",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d307394_19 http://dati.camera.it/ocd/deputato.rdf/d307435_19 http://dati.camera.it/ocd/deputato.rdf/d308818_19 http://dati.camera.it/ocd/deputato.rdf/d308841_19 http://dati.camera.it/ocd/deputato.rdf/d308844_19 http://dati.camera.it/ocd/deputato.rdf/d308845_19 http://dati.camera.it/ocd/deputato.rdf/d308846_19"
+        },
+        "subjects": {
+          "type": "literal",
+          "value": "http://eurovoc.europa.eu/3057"
+        }
+      },
+      {
+        "aic": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/aic.rdf/aic9_00362_A_001_19"
+        },
+        "identifier": {
+          "type": "literal",
+          "value": "9/00362-A/001"
+        },
+        "tipo": {
+          "type": "literal",
+          "value": "ODG - ORDINE DEL GIORNO IN ASSEMBLEA"
+        },
+        "titolo": {
+          "type": "literal",
+          "value": "ODG IN ASSEMBLEA SU P.D.L. 9/00362-A/001 presentata da BARABOTTI ANDREA (LEGA - SALVINI PREMIER) in data 21/10/2026"
+        },
+        "data": {
+          "type": "literal",
+          "value": "20261021"
+        },
+        "concluso": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        },
+        "modified": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "value": "2026-11-24T13:32:57Z"
+        },
+        "relation": {
+          "type": "literal",
+          "value": "http://documenti.camera.it/apps/commonServices/getDocumento.ashx?sezione=lavori&tipoDoc=sicross&idlegislatura=19&ramo=camera&stile=6&idDocumento=9/00362-A/001"
+        },
+        "primo": {
+          "type": "uri",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d308890_19"
+        },
+        "altri": {
+          "type": "literal",
+          "value": "http://dati.camera.it/ocd/deputato.rdf/d307285_19"
+        },
+        "subjects": {
+          "type": "literal",
+          "value": "http://eurovoc.europa.eu/2278 http://eurovoc.europa.eu/2734 http://eurovoc.europa.eu/2771 http://eurovoc.europa.eu/2812 http://eurovoc.europa.eu/2836 http://eurovoc.europa.eu/2840 http://eurovoc.europa.eu/3079 http://eurovoc.europa.eu/4669 http://eurovoc.europa.eu/5707 http://eurovoc.europa.eu/635 http://eurovoc.europa.eu/656"
+        }
+      }
+    ]
+  }
+}
