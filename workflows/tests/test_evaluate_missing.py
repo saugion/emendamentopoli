@@ -79,5 +79,8 @@ async def test_missing_query_uses_anti_join(monkeypatch):
     assert params["valutazioni"] == "is.null"
     assert params["corrente"] == "is.true"
     assert params["testo"] == "not.is.null"
+    assert params["rilevante_spesa"] == "is.true"
     assert "valutazioni()" in params["select"]
+    assert "chamber:camera" in params["select"]
+    assert "relevant_spending:rilevante_spesa" in params["select"]
     assert "valutazioni.id" not in params
