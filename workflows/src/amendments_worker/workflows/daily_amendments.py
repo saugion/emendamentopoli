@@ -6,7 +6,8 @@ class does not expose the submission date, so the most recent amendments are
 taken (decreasing numeric id, which follows the submission order) and the date
 is read from each one's Akoma Ntoso text. With end_date an entire interval is
 downloaded (e.g. a one-month backfill): the SPARQL scan proceeds in pages of
-SPARQL_PAGE with an early stop when a read date is earlier than start date.
+100 with an early stop when a read date is earlier than start date. The
+pagination/policy loop lives in ingest.py; this file only wires the adapters.
 """
 
 import asyncio
@@ -19,15 +20,13 @@ from pydantic import BaseModel, Field, model_validator
 import mistralai.workflows as workflows
 
 from . import supabase
+from .ingest import IngestDeps, ingest_period
 from .models import Amendment
-from .evaluation import Evaluation, save_evaluations, evaluate_amendment
+from .evaluation import save_evaluations, evaluate_amendment
 
 SPARQL_ENDPOINT = "https://dati.senato.it/sparql"
 UA = "curl/8.5.0"  # CloudFront only accepts curl-like user-agents on these paths
 TIMEZONE = "Europe/Rome"
-ENRICH_CONCURRENCY = 5
-EVALUATION_CONCURRENCY = 10
-SPARQL_PAGE = 100
 
 
 class DailyAmendmentsInput(BaseModel):
@@ -276,92 +275,25 @@ class DailyAmendmentsWorkflow:
     async def run(self, input: DailyAmendmentsInput) -> DailyAmendmentsOutput:
         start_date = input.date if input.date else await yesterday()
         end_date = input.end_date if input.end_date else start_date
-        enrich_sem = asyncio.Semaphore(ENRICH_CONCURRENCY)
-
-        async def _enrich(m: Amendment) -> Amendment:
-            async with enrich_sem:
-                return await enrich_amendment(m)
-
-        already_saved = await saved_amendments_map(input.legislature)
-        eval_sem = asyncio.Semaphore(EVALUATION_CONCURRENCY)
-
-        async def _evaluate(a: Amendment) -> Evaluation:
-            async with eval_sem:
-                return await evaluate_amendment(a)
-
-        metadata: list[Amendment] = []
-        analyzed_count = 0
-        in_period: list[Amendment] = []
-        errors: list[str] = []
-        evaluation_errors: list[str] = []
-        saved = 0
-        evaluated = 0
-        offset = 0
-        while len(metadata) < input.limit:
-            try:
-                page = await fetch_metadata_page(
-                    input.legislature, min(SPARQL_PAGE, input.limit - len(metadata)), offset
-                )
-            except Exception as e:
-                errors.append(f"fetch_metadata_page offset={offset}: {type(e).__name__}: {e}")
-                break
-            if not page:
-                break
-            metadata.extend(page)
-            offset += len(page)
-            # re-enrich amendments already saved but still without signatories (backfill)
-            to_enrich = [
-                m
-                for m in page
-                if m.id not in already_saved or not already_saved[m.id]["firmatari"]
-            ]
-            results = await asyncio.gather(
-                *[_enrich(m) for m in to_enrich],
-                return_exceptions=True,
-            )
-            errors.extend(
-                f"{m.id}: {type(r).__name__}: {r}"
-                for m, r in zip(to_enrich, results)
-                if isinstance(r, BaseException)
-            )
-            page_ok = [r for r in results if not isinstance(r, BaseException)]
-            analyzed_count += len(page_ok)
-            dates = [a.date for a in page_ok if a.date]
-            dates += [
-                already_saved[m.id]["data"]
-                for m in page
-                if m.id in already_saved and already_saved[m.id]["data"]
-            ]
-            page_in_period = [a for a in page_ok if a.date and start_date <= a.date <= end_date]
-            if page_in_period:
-                saved += await save_amendments(page_in_period)
-                in_period.extend(page_in_period)
-                # evaluate only newly seen amendments: already-saved ones have a valutazione already
-                to_evaluate = [a for a in page_in_period if a.id not in already_saved]
-                eval_results = await asyncio.gather(
-                    *[_evaluate(a) for a in to_evaluate],
-                    return_exceptions=True,
-                )
-                evaluation_errors.extend(
-                    f"{a.id}: {type(r).__name__}: {r}"
-                    for a, r in zip(to_evaluate, eval_results)
-                    if isinstance(r, BaseException)
-                )
-                evaluations = [r for r in eval_results if not isinstance(r, BaseException)]
-                evaluated += await save_evaluations(evaluations) if evaluations else 0
-            if dates and min(dates) < start_date:
-                break
-
+        deps = IngestDeps(
+            fetch_page=fetch_metadata_page,
+            enrich=enrich_amendment,
+            saved_map=saved_amendments_map,
+            save=save_amendments,
+            evaluate=evaluate_amendment,
+            save_evaluations=save_evaluations,
+        )
+        report = await ingest_period(start_date, end_date, input.legislature, input.limit, deps)
         return DailyAmendmentsOutput(
             date=start_date,
             end_date=end_date,
             legislature=input.legislature,
-            metadata_fetched=len(metadata),
-            analyzed=analyzed_count,
-            found=len(in_period),
-            saved=saved,
-            evaluated=evaluated,
-            ids=[a.id for a in in_period],
-            errors=errors,
-            evaluation_errors=evaluation_errors,
+            metadata_fetched=report.metadata_fetched,
+            analyzed=report.analyzed,
+            found=report.found,
+            saved=report.saved,
+            evaluated=report.evaluated,
+            ids=report.ids,
+            errors=report.errors,
+            evaluation_errors=report.evaluation_errors,
         )
