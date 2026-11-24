@@ -35,8 +35,8 @@ class FakeClient:
     async def __aexit__(self, *args):
         return False
 
-    async def get(self, url):
-        self._calls.append(("GET", url, self.headers, None))
+    async def get(self, url, params=None):
+        self._calls.append(("GET", url, self.headers, params))
         return self._responses.pop(0)
 
     async def post(self, url, json=None):
@@ -142,10 +142,16 @@ async def test_amendments_without_evaluation_uses_aliases(transport):
         )
     )
     result = await supabase.amendments_without_evaluation(500)
-    _, url, _, _ = calls[0]
-    assert "legislature:legislatura" in url
-    assert "valutazioni.id=is.null" in url
-    assert "limit=500" in url
+    _, url, _, params = calls[0]
+    assert url.endswith("/rest/v1/emendamenti")
+    assert "legislature:legislatura" in params["select"]
+    assert "valutazioni()" in params["select"]
+    assert params["valutazioni"] == "is.null"
+    assert "valutazioni.id" not in params
+    assert params["corrente"] == "is.true"
+    assert params["testo"] == "not.is.null"
+    assert params["order"] == "data.desc.nullslast"
+    assert params["limit"] == "500"
     assert result[0].id == "x" and result[0].legislature == 19 and result[0].bill == "Ddl 391"
 
 

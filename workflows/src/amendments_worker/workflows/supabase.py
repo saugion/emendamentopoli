@@ -33,12 +33,17 @@ def _config() -> tuple[str, dict[str, str]]:
     return base, headers
 
 
-async def _get(base: str, headers: dict[str, str], url: str) -> object:
+async def _get(
+    base: str,
+    headers: dict[str, str],
+    url: str,
+    params: dict[str, str] | None = None,
+) -> object:
     async with httpx.AsyncClient(timeout=READ_TIMEOUT, headers=headers) as client:
         for attempt in range(3):
             if attempt:
                 await asyncio.sleep(5 * attempt)
-            resp = await client.get(url)
+            resp = await client.get(url, params=params)
             if resp.status_code in _RETRYABLE and attempt < 2:
                 continue
             resp.raise_for_status()
@@ -148,13 +153,20 @@ async def insert_evaluations(evaluations: list["Evaluation"]) -> int:
 
 
 async def amendments_without_evaluation(limit: int) -> list[Amendment]:
+    # anti-join: select=...,valutazioni() + valutazioni=is.null (embedded filters like
+    # valutazioni.id=is.null do NOT filter the top-level rows; this form does)
     base, headers = _config()
-    url = (
-        f"{base}/rest/v1/emendamenti"
-        "?select=id,legislature:legislatura,number:numero,type:tipo,committee_seat:sede_commissione,"
-        "act_uri:atto_uri,bill:ddl,text_url:url_testo,text_xml_url:url_testo_xml,date:data,text:testo"
-        ",valutazioni!left(id)"
-        f"&valutazioni.id=is.null&order=created_at.desc&limit={limit}"
-    )
-    rows = await _get(base, headers, url)
+    params = {
+        "select": (
+            "id,legislature:legislatura,number:numero,type:tipo,committee_seat:sede_commissione,"
+            "act_uri:atto_uri,bill:ddl,text_url:url_testo,text_xml_url:url_testo_xml,date:data,text:testo"
+            ",valutazioni()"
+        ),
+        "valutazioni": "is.null",
+        "corrente": "is.true",
+        "testo": "not.is.null",
+        "order": "data.desc.nullslast",
+        "limit": str(limit),
+    }
+    rows = await _get(base, headers, f"{base}/rest/v1/emendamenti", params)
     return [Amendment(**{k: r[k] for k in Amendment.model_fields if k in r}) for r in rows]
