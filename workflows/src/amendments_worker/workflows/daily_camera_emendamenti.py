@@ -8,12 +8,13 @@ version). Every version is upserted (id = <chiave>#<position>) and
 ricalcola_versioni runs after each save; from Phase 2 only money-relevant current
 versions are evaluated (evaluate_and_save).
 """
+from __future__ import annotations
+
 
 import asyncio
 import hashlib
 from datetime import datetime, timedelta, timezone
 
-import httpx
 from pydantic import BaseModel, Field
 
 import mistralai.workflows as workflows
@@ -28,7 +29,7 @@ from ..sources.camera_emendamenti import (
     parse_detail,
     parse_list,
 )
-from ..sources.common import CAMERA_HTML_TIMEOUT, polite_get
+from ..sources.common import camera_html_timeout, polite_get
 from ..sources.rilevanza import calcola_rilevanza
 from .daily_camera_odg import camera_cursor_get, camera_cursor_set, db_atti_flags
 from .evaluation import evaluate_and_save
@@ -83,6 +84,7 @@ class ListResult(BaseModel):
 
 
 async def db_atti_for_discovery(cursor: str | None, limit: int) -> list[tuple[str, str]]:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     filters: dict[str, str] = {"legislatura": "eq.19"}
     if cursor:
@@ -107,12 +109,14 @@ async def db_atti_for_discovery(cursor: str | None, limit: int) -> list[tuple[st
 
 
 async def db_upsert_liste(rows: list[dict]) -> None:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=90.0, headers=source_supabase.supabase_headers(key)) as client:
         await source_supabase.upsert(client, "camera_liste_emendamenti", rows, "url")
 
 
 async def db_lists_known() -> int:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=60.0, headers=source_supabase.supabase_headers(key)) as client:
         resp = await client.get(
@@ -125,6 +129,7 @@ async def db_lists_known() -> int:
 
 
 async def db_lists_to_check(atti: list[str] | None, limit: int) -> list[str]:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     filters: dict[str, str] = {}
     order = "controllato_at.asc.nullsfirst"
@@ -142,6 +147,7 @@ async def db_lists_to_check(atti: list[str] | None, limit: int) -> list[str]:
 
 
 async def db_list_state(url: str) -> dict | None:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=45.0, headers=source_supabase.supabase_headers(key)) as client:
         rows = await source_supabase.select_all(
@@ -170,6 +176,7 @@ async def db_list_store_result(url: str, last_modified: str, righe: int) -> None
 
 
 async def db_emendamenti_by_fonte(url: str) -> dict[str, dict]:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=90.0, headers=source_supabase.supabase_headers(key)) as client:
         rows = await source_supabase.select_all(
@@ -182,6 +189,7 @@ async def db_emendamenti_by_fonte(url: str) -> dict[str, dict]:
 
 
 async def db_save_eme_rows(rows: list[dict]) -> None:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=150.0, headers=source_supabase.supabase_headers(key)) as client:
         await source_supabase.upsert(client, "emendamenti", rows, "id")
@@ -210,6 +218,7 @@ async def atti_for_discovery(cursor: str | None, limit: int) -> list[tuple[str, 
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=600), retry_policy_max_attempts=2)
 async def discover_atto_lists(numeri: list[str], legislature: int) -> DiscoveryResult:
+    import httpx
     found = 0
     errors: list[str] = []
     rows: list[dict] = []
@@ -218,7 +227,7 @@ async def discover_atto_lists(numeri: list[str], legislature: int) -> DiscoveryR
             try:
                 resp = await polite_get(
                     client, ATTO_PAGE.format(legislature=legislature, numero=numero),
-                    timeout=CAMERA_HTML_TIMEOUT,
+                    timeout=camera_html_timeout(),
                 )
                 page = resp.content.decode("utf-8", errors="replace")
                 for url in extract_list_urls(page):
@@ -244,6 +253,7 @@ async def lists_to_check(atti: list[str] | None, limit: int) -> list[str]:
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=900), retry_policy_max_attempts=2)
 async def process_camera_list(url: str, max_detail: int) -> ListResult:
+    import httpx
     parts = list_url_parts(url)
     atto_numero, sede = parts if parts else ("?", "?")
     chiave_prefix = f"camera:19:em:AC{atto_numero}:{sede}"
@@ -252,7 +262,7 @@ async def process_camera_list(url: str, max_detail: int) -> ListResult:
     if state and state.get("last_modified"):
         headers["If-Modified-Since"] = state["last_modified"]
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await polite_get(client, url, headers=headers, timeout=CAMERA_HTML_TIMEOUT)
+        resp = await polite_get(client, url, headers=headers, timeout=camera_html_timeout())
         if resp.status_code == 304:
             await db_list_touch(url)
             return ListResult(
@@ -310,7 +320,7 @@ async def process_camera_list(url: str, max_detail: int) -> ListResult:
         details_fetched = 0
         for r in to_fetch:
             try:
-                dresp = await polite_get(client, detail_url(r.href or ""), timeout=CAMERA_HTML_TIMEOUT)
+                dresp = await polite_get(client, detail_url(r.href or ""), timeout=camera_html_timeout())
                 dpage = dresp.content.decode("utf-8", errors="replace")
                 detail = parse_detail(dpage)
                 item_rows = eme_rows(atto_numero, sede, r, detail, url)

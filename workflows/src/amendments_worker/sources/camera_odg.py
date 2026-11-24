@@ -5,6 +5,10 @@ parere and the esito) is read per item from the sicross page at dc:relation (sti
 Pagination is an inclusive keyset on ods:modified (OFFSET is forbidden: Virtuoso SR353
 past 10,000 sorted rows).
 """
+from __future__ import annotations
+
+
+from __future__ import annotations
 
 import hashlib
 import html
@@ -13,11 +17,10 @@ import re
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 
-import httpx
 from pydantic import BaseModel
 
 from .common import (
-    CAMERA_SPARQL_TIMEOUT,
+    camera_sparql_timeout,
     SPARQL_CAMERA_ENDPOINT,
     html_to_text,
     polite_get,
@@ -211,7 +214,7 @@ async def iterate_odg(
             SPARQL_CAMERA_ENDPOINT,
             params={"query": q, "format": "application/sparql-results+json"},
             headers={"Accept": "application/sparql-results+json"},
-            timeout=CAMERA_SPARQL_TIMEOUT,
+            timeout=camera_sparql_timeout(),
         )
         page = parse_odg_bindings(resp.json()["results"]["bindings"])
         new = [i for i in page if i.aic not in seen]
