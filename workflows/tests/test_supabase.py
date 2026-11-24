@@ -52,7 +52,9 @@ def transport(monkeypatch):
     def factory(timeout=None, headers=None):
         return FakeClient(calls, responses, timeout=timeout, headers=headers)
 
-    monkeypatch.setattr(supabase.httpx, "AsyncClient", factory)
+    import httpx
+
+    monkeypatch.setattr(httpx, "AsyncClient", factory)
     monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co/")
     monkeypatch.setenv("SUPABASE_KEY", "test-key")
     return calls, responses

@@ -4,6 +4,10 @@ Titles are cleaned (entities unescaped up to 3 times, tags dropped, trailing "(3
 removed) and flagged: is_dl_conversione (decreto-legge conversions), is_bilancio
 (Government budget laws), is_commissione_bilancio_referente (V Commissione, organo o19_3505).
 """
+from __future__ import annotations
+
+
+from __future__ import annotations
 
 import html
 import logging
@@ -11,12 +15,11 @@ import re
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 
-import httpx
 from pydantic import BaseModel
 
 from .common import (
-    CAMERA_SPARQL_TIMEOUT,
     SPARQL_CAMERA_ENDPOINT,
+    camera_sparql_timeout,
     polite_get,
     yyyymmdd_to_iso,
 )
@@ -112,7 +115,7 @@ async def iterate_atti(
             SPARQL_CAMERA_ENDPOINT,
             params={"query": q, "format": "application/sparql-results+json"},
             headers={"Accept": "application/sparql-results+json"},
-            timeout=CAMERA_SPARQL_TIMEOUT,
+            timeout=camera_sparql_timeout(),
         )
         page = parse_atti_bindings(resp.json()["results"]["bindings"])
         new = [i for i in page if i.uri not in seen]

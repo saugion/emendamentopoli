@@ -1,8 +1,10 @@
 """Thin PostgREST helpers (Supabase): paginated reads, chunked upserts, RPC."""
+from __future__ import annotations
+
+
+from __future__ import annotations
 
 import os
-
-import httpx
 
 from .common import SUPABASE_PAGE
 

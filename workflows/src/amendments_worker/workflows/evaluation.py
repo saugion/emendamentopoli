@@ -4,12 +4,13 @@ The Mistral call goes through the SDK plugin (get_mistral_client), which uses
 the run identity: in the managed deployment it is the service account
 (workflow_executor), so no MISTRAL_API_KEY is needed.
 """
+from __future__ import annotations
+
 
 import math
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
-import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 import mistralai.workflows as workflows
@@ -256,6 +257,7 @@ async def evaluate_and_save(amendment_id: str) -> EvalOutcome:
     """Evaluates one stored amendment (gated + reuse) and saves the valutazione.
     Saving uses the same on_conflict/ignore-duplicates POST as save_evaluations,
     so a concurrent duplicate is a no-op."""
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=60.0, headers=source_supabase.supabase_headers(key)) as client:
         return await evaluate_and_save_impl(client, amendment_id)

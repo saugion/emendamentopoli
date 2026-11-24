@@ -1,5 +1,7 @@
 """Shared constants and helpers for the Camera sources: HTTP politeness, hashes, text normalization."""
 
+from __future__ import annotations
+
 import asyncio
 import hashlib
 import html
@@ -11,7 +13,10 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
 
-import httpx
+# NOTE: httpx is imported lazily inside functions on purpose: httpx subclasses
+# urllib.request.Request at import time, and urllib.request is restricted inside
+# the Temporal workflow sandbox, so a module-level `import httpx` in any module
+# reachable from a workflow module makes the worker fail validation at startup.
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +26,25 @@ CAMERA_CONCURRENCY_PER_HOST = 2
 CAMERA_RETRY_STATUSES = frozenset({403, 429, 500, 502, 503, 504})
 CAMERA_BACKOFF_S = (1.0, 2.0, 4.0, 8.0)   # waits before attempts 2..5
 CAMERA_MAX_ATTEMPTS = 5
-CAMERA_HTML_TIMEOUT = httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0)
-CAMERA_SPARQL_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
+CAMERA_HTML_TIMEOUT_S = (10.0, 60.0, 10.0, 10.0)    # connect, read, write, pool
+CAMERA_SPARQL_TIMEOUT_S = (10.0, 120.0, 10.0, 10.0)
 SPARQL_CAMERA_ENDPOINT = "https://dati.camera.it/sparql"
+
+
+def _timeout(spec: tuple[float, float, float, float]) -> httpx.Timeout:
+    import httpx
+
+    return httpx.Timeout(connect=spec[0], read=spec[1], write=spec[2], pool=spec[3])
+
+
+def camera_html_timeout() -> httpx.Timeout:
+    """Default timeout for HTML pages (read 60s)."""
+    return _timeout(CAMERA_HTML_TIMEOUT_S)
+
+
+def camera_sparql_timeout() -> httpx.Timeout:
+    """Timeout for SPARQL queries (read 120s)."""
+    return _timeout(CAMERA_SPARQL_TIMEOUT_S)
 SUPABASE_PAGE = 1000                 # PostgREST max-rows on this project (verified)
 
 _RE_TAG = re.compile(r"<[^>]+>")
@@ -64,11 +85,16 @@ async def polite_get(
     *,
     params: dict[str, str] | None = None,
     headers: dict[str, str] | None = None,
-    timeout: httpx.Timeout = CAMERA_HTML_TIMEOUT,
+    timeout: httpx.Timeout | None = None,
 ) -> httpx.Response:
     """GET with LIMITER, UA CAMERA_USER_AGENT (always set, overriding any caller value), retries on
     CAMERA_RETRY_STATUSES / httpx.TransportError with backoff CAMERA_BACKOFF_S (plus Retry-After when integer).
-    304 is a success; any other non-2xx raises immediately; after CAMERA_MAX_ATTEMPTS raises RuntimeError."""
+    304 is a success; any other non-2xx raises immediately; after CAMERA_MAX_ATTEMPTS raises RuntimeError.
+    timeout=None means camera_html_timeout()."""
+    import httpx
+
+    if timeout is None:
+        timeout = camera_html_timeout()
     host = urlsplit(url).netloc
     hdrs = {**(headers or {}), "User-Agent": CAMERA_USER_AGENT}
     last_error = "no attempt"

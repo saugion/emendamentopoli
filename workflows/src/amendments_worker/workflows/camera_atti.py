@@ -4,10 +4,11 @@ Incremental mode uses the camera_atti_modified cursor (ods:modified, 2-day overl
 full=True ignores the cursor and re-reads all bills of the legislature. Keyset pagination,
 dedupe by URI, upsert on uri.
 """
+from __future__ import annotations
+
 
 from datetime import datetime, timedelta
 
-import httpx
 from pydantic import BaseModel, Field
 
 import mistralai.workflows as workflows
@@ -45,6 +46,7 @@ class CameraAttiOutput(BaseModel):
 
 
 async def db_save_atti(rows: list[dict]) -> None:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=150.0, headers=source_supabase.supabase_headers(key)) as client:
         await source_supabase.upsert(client, "atti", rows, "uri")
@@ -52,6 +54,7 @@ async def db_save_atti(rows: list[dict]) -> None:
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=300), retry_policy_max_attempts=1)
 async def fetch_camera_atti_page(legislature: int, since: str) -> list[CameraAttoItem]:
+    import httpx
     q = query_camera_atti(legislature, since)
     async with httpx.AsyncClient(timeout=120.0) as client:
         resp = await polite_get(
@@ -59,7 +62,7 @@ async def fetch_camera_atti_page(legislature: int, since: str) -> list[CameraAtt
             SPARQL_CAMERA_ENDPOINT,
             params={"query": q, "format": "application/sparql-results+json"},
             headers={"Accept": "application/sparql-results+json"},
-            timeout=common.CAMERA_SPARQL_TIMEOUT,
+            timeout=common.camera_sparql_timeout(),
         )
     return parse_atti_bindings(resp.json()["results"]["bindings"])
 

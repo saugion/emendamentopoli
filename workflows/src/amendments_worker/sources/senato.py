@@ -9,12 +9,15 @@ The AKN parser is shared with src/akn.ts: tests/fixtures/akn/*.xml +
 *.expected.json are read by both the Python and the TypeScript test suites,
 so the two adapters are pinned to the same behaviour.
 """
+from __future__ import annotations
+
+
+from __future__ import annotations
 
 import re
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
-import httpx
 from pydantic import BaseModel, Field
 
 from .common import testo_hash

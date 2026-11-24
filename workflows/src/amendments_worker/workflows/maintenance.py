@@ -5,11 +5,12 @@ Run once after migration 0006 is applied (backfills the Senate rows) and after a
 rule change (R1 -> R2/R3). No texts cross the activity boundary: reading, computing and
 writing all happen inside the maintenance_page activity.
 """
+from __future__ import annotations
+
 
 from datetime import timedelta
 from typing import Literal
 
-import httpx
 from pydantic import BaseModel, Field
 
 import mistralai.workflows as workflows
@@ -45,6 +46,7 @@ _PAGE_SELECT = (
 
 
 async def db_maintenance_read(after_id: str | None, only_missing: bool) -> list[dict]:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     filters = {"rilevante_spesa": "is.null"} if only_missing else {}
     if after_id is not None:
@@ -60,6 +62,7 @@ async def db_maintenance_read(after_id: str | None, only_missing: bool) -> list[
 
 
 async def db_atti_flags_all() -> dict[str, dict]:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=90.0, headers=source_supabase.supabase_headers(key)) as client:
         rows = await source_supabase.select_all(
@@ -72,6 +75,7 @@ async def db_atti_flags_all() -> dict[str, dict]:
 
 
 async def db_maintenance_write(rows: list[dict]) -> None:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=150.0, headers=source_supabase.supabase_headers(key)) as client:
         await source_supabase.upsert(client, "emendamenti", rows, "id")

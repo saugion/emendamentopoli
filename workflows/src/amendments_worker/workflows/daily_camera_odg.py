@@ -8,12 +8,13 @@ in_corso items or the recent-window pass (the last CAMERA_ODG_RECENT_DAYS of dc:
 because ods:modified is bulk re-stamped. Backfill mode (input date..end_date) scans one
 dc:date window and never touches the cursor.
 """
+from __future__ import annotations
+
 
 import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
-import httpx
 from pydantic import BaseModel, Field, model_validator
 
 import mistralai.workflows as workflows
@@ -30,7 +31,7 @@ from ..sources.camera_odg import (
     parse_sicross,
     query_camera_odg,
 )
-from ..sources.common import CAMERA_HTML_TIMEOUT, SPARQL_CAMERA_ENDPOINT, polite_get
+from ..sources.common import SPARQL_CAMERA_ENDPOINT, camera_html_timeout, polite_get
 from ..sources.rilevanza import calcola_rilevanza
 from .evaluation import evaluate_and_save
 
@@ -96,6 +97,7 @@ class OdgChunkResult(BaseModel):
 
 
 async def db_cursor_get(nome: str) -> str | None:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=45.0, headers=source_supabase.supabase_headers(key)) as client:
         rows = await source_supabase.select_all(
@@ -105,6 +107,7 @@ async def db_cursor_get(nome: str) -> str | None:
 
 
 async def db_cursor_set(nome: str, valore: str) -> None:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=45.0, headers=source_supabase.supabase_headers(key)) as client:
         await source_supabase.upsert(
@@ -117,6 +120,7 @@ async def db_cursor_set(nome: str, valore: str) -> None:
 
 async def db_current_rows(keys: list[str]) -> dict[str, dict]:
     """Current rows (corrente=is.true) of the given natural keys: chiave_naturale -> row."""
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     in_list = "in.(" + ",".join(f'"{k}"' for k in keys) + ")"
     async with httpx.AsyncClient(timeout=45.0, headers=source_supabase.supabase_headers(key)) as client:
@@ -130,6 +134,7 @@ async def db_current_rows(keys: list[str]) -> dict[str, dict]:
 
 
 async def db_atti_flags(legislature: int) -> dict[str, dict]:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=45.0, headers=source_supabase.supabase_headers(key)) as client:
         rows = await source_supabase.select_all(
@@ -143,6 +148,7 @@ async def db_atti_flags(legislature: int) -> dict[str, dict]:
 
 
 async def db_save_odg_rows(rows: list[dict]) -> None:
+    import httpx
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=150.0, headers=source_supabase.supabase_headers(key)) as client:
         await source_supabase.upsert(client, "emendamenti", rows, "id")
@@ -178,6 +184,7 @@ async def camera_cursor_set(nome: str, valore: str) -> None:
 async def fetch_camera_odg_page(
     legislature: int, since: str, date_from: str | None, date_to: str | None
 ) -> list[CameraOdgItem]:
+    import httpx
     q = query_camera_odg(legislature, since, date_from, date_to)
     async with httpx.AsyncClient(timeout=120.0) as client:
         resp = await polite_get(
@@ -185,7 +192,7 @@ async def fetch_camera_odg_page(
             SPARQL_CAMERA_ENDPOINT,
             params={"query": q, "format": "application/sparql-results+json"},
             headers={"Accept": "application/sparql-results+json"},
-            timeout=common.CAMERA_SPARQL_TIMEOUT,
+            timeout=common.camera_sparql_timeout(),
         )
     return parse_odg_bindings(resp.json()["results"]["bindings"])
 
@@ -194,6 +201,7 @@ async def fetch_camera_odg_page(
 async def process_camera_odg_chunk(
     items: list[CameraOdgItem], max_fetch: int, incremental: bool, force_refetch: bool = False
 ) -> OdgChunkResult:
+    import httpx
     keys = [f"camera:19:odg:{i.identifier.strip().upper()}" for i in items]
     existing = await db_current_rows(keys)
     atti = await db_atti_flags(19)
@@ -225,7 +233,7 @@ async def process_camera_odg_chunk(
             url = item.relation.replace("http://", "https://", 1)
             page = None
             try:
-                resp = await polite_get(client, url, timeout=CAMERA_HTML_TIMEOUT)
+                resp = await polite_get(client, url, timeout=camera_html_timeout())
                 text = resp.content.decode("utf-8", errors="replace")
                 page = parse_sicross(text)
                 if page is None:

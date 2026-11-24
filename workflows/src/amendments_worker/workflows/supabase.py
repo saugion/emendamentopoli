@@ -3,13 +3,14 @@ timeouts, retry on reads, column aliases, row mapping) live behind this small
 interface. The workflow activities are thin wrappers that call these functions;
 tests exercise them through the same seam with an httpx mock transport.
 """
+from __future__ import annotations
+
 
 import asyncio
 import json
 import os
 from typing import TYPE_CHECKING
 
-import httpx
 
 from .models import Amendment
 
@@ -39,6 +40,7 @@ async def _get(
     url: str,
     params: dict[str, str] | None = None,
 ) -> object:
+    import httpx
     async with httpx.AsyncClient(timeout=READ_TIMEOUT, headers=headers) as client:
         for attempt in range(3):
             if attempt:
@@ -58,6 +60,7 @@ async def _post(
     payload: list[dict],
     prefer: str | None,
 ) -> object:
+    import httpx
     request_headers = {**headers, **({"Prefer": prefer} if prefer else {})}
     async with httpx.AsyncClient(timeout=WRITE_TIMEOUT, headers=request_headers) as client:
         resp = await client.post(f"{base}{path}", json=payload)
