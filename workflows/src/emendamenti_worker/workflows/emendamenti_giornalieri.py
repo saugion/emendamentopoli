@@ -24,7 +24,7 @@ from .valutazione import Valutazione, salva_valutazioni, valuta_emendamento
 SPARQL_ENDPOINT = "https://dati.senato.it/sparql"
 UA = "curl/8.5.0"  # CloudFront accetta solo user-agent curl-like su questi path
 FUSO_ORARIO = "Europe/Rome"
-CONCORRENZA_ARRICHIMENTO = 25
+CONCORRENZA_ARRICHIMENTO = 8
 CONCORRENZA_VALUTAZIONE = 10
 PAGINA_SPARQL = 1000
 
@@ -166,9 +166,15 @@ async def scarica_pagina_metadati(legislatura: int, limite_pagina: int, offset: 
         timeout=90.0,
         headers={"Accept": "application/sparql-results+json", "User-Agent": UA},
     ) as client:
-        resp = await client.get(url)
-        if not resp.is_success:
-            raise RuntimeError(f"SPARQL {resp.status_code}: {resp.text[:500]}")
+        for tentativo in range(4):
+            if tentativo:
+                await asyncio.sleep(10 * tentativo)
+            resp = await client.get(url)
+            if resp.status_code in (403, 429, 500, 502, 503) and tentativo < 3:
+                continue
+            if not resp.is_success:
+                raise RuntimeError(f"SPARQL {resp.status_code}: {resp.text[:500]}")
+            break
         bindings = resp.json()["results"]["bindings"]
     emendamenti = [
         Emendamento(
@@ -194,9 +200,16 @@ async def arricchisci_emendamento(eme: Emendamento) -> Emendamento:
     url = eme.url_testo_xml
     if url.startswith("http:"):
         url = "https:" + url[len("http:") :]
+    await asyncio.sleep(0.2)
     async with httpx.AsyncClient(timeout=45.0, headers={"User-Agent": UA}) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
+        for tentativo in range(3):
+            if tentativo:
+                await asyncio.sleep(5 * tentativo)
+            resp = await client.get(url)
+            if resp.status_code in (403, 429) and tentativo < 2:
+                continue
+            resp.raise_for_status()
+            break
         # il XML e' iso-8859-1: decodifica byte->latin1
         xml = resp.content.decode("windows-1252")
     eme.data = estrai_data(xml)
