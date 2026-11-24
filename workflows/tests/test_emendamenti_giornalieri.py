@@ -100,8 +100,53 @@ async def test_data_esplicita_e_nessun_risultato(monkeypatch) -> None:
     )
     d = result if isinstance(result, dict) else result.model_dump()
     assert d["data"] == "2020-01-01"
+    assert d["data_fine"] == "2020-01-01"
     assert d["trovati"] == 0
     assert d["salvati"] == 0
     assert d["valutati"] == 0
     assert SALVATI == []
     assert VALUTATI == []
+
+
+async def test_periodo_piu_giorni(monkeypatch) -> None:
+    SALVATI.clear()
+    VALUTATI.clear()
+
+    async def _arricchisci_range(eme: mod.Emendamento) -> mod.Emendamento:
+        n = int(eme.id.rsplit("/", 1)[-1])
+        eme.data = {1: DATA, 2: "2026-01-11", 3: "2026-01-12"}[n]
+        eme.ddl = "Ddl 391"
+        eme.testo = "testo"
+        return eme
+
+    monkeypatch.setattr(mod, "data_ieri", _data_ieri)
+    monkeypatch.setattr(mod, "scarica_metadati_recenti", _scarica)
+    monkeypatch.setattr(mod, "arricchisci_emendamento", _arricchisci_range)
+    monkeypatch.setattr(mod, "salva_emendamenti", _salva)
+    monkeypatch.setattr(mod, "valuta_emendamento", _valuta)
+    monkeypatch.setattr(mod, "salva_valutazioni", _salva_valutazioni)
+    result = await workflows.execute_workflow(
+        mod.EmendamentiGiornalieriWorkflow,
+        params=mod.EmendamentiGiornalieriInput(
+            data=DATA, data_fine="2026-01-11", legislatura=19, limite=10
+        ),
+    )
+    d = result if isinstance(result, dict) else result.model_dump()
+    assert d["data"] == DATA
+    assert d["data_fine"] == "2026-01-11"
+    assert d["trovati"] == 2
+    assert d["salvati"] == 2
+    assert d["valutati"] == 2
+    assert d["ids"] == [
+        "http://dati.senato.it/emendamento/1",
+        "http://dati.senato.it/emendamento/2",
+    ]
+    assert d["errori"] == []
+    assert d["errori_valutazione"] == []
+
+
+def test_periodo_incoerente() -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        mod.EmendamentiGiornalieriInput(data="2026-11-30", data_fine="2026-11-01")
