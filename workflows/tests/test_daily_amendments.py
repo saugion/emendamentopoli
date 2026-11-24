@@ -319,6 +319,44 @@ async def test_incremental_save_per_page(monkeypatch) -> None:
     assert len(EVALUATED) == 2
 
 
+async def test_page_failure_is_not_fatal(monkeypatch) -> None:
+    SAVED.clear()
+    EVALUATED.clear()
+    calls = 0
+
+    async def _pages_fail(legislature: int, page_limit: int, offset: int) -> list[mod.Amendment]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return [_eme(1)]
+        raise RuntimeError("SPARQL 403")
+
+    async def _enrich_one(eme: mod.Amendment) -> mod.Amendment:
+        eme.date = DATE
+        eme.bill = "Ddl 391"
+        eme.text = "text"
+        return eme
+
+    monkeypatch.setattr(mod, "yesterday", _yesterday)
+    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map_empty)
+    monkeypatch.setattr(mod, "fetch_metadata_page", _pages_fail)
+    monkeypatch.setattr(mod, "enrich_amendment", _enrich_one)
+    monkeypatch.setattr(mod, "save_amendments", _save)
+    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
+    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
+    result = await workflows.execute_workflow(
+        mod.DailyAmendmentsWorkflow,
+        params=mod.DailyAmendmentsInput(date=DATE, legislature=19, limit=10),
+    )
+    d = result if isinstance(result, dict) else result.model_dump()
+    assert d["metadata_fetched"] == 1
+    assert d["found"] == 1
+    assert d["saved"] == 1
+    assert d["ids"] == ["http://dati.senato.it/emendamento/1"]
+    assert len(d["errors"]) == 1
+    assert "fetch_metadata_page" in d["errors"][0]
+
+
 def test_inconsistent_period() -> None:
     import pytest
 
