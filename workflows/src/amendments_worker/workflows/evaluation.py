@@ -5,17 +5,22 @@ the run identity: in the managed deployment it is the service account
 (workflow_executor), so no MISTRAL_API_KEY is needed.
 """
 
+import math
 from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel, ConfigDict, Field
 
 import mistralai.workflows as workflows
 
+from ..sources.common import testo_hash
 from . import supabase
 from .models import Amendment
 
 MODEL = "mistral-small-latest"
 RUBRIC = {"trasparenza": 0.3, "salute": 0.25, "ambiente": 0.25, "concretezza": 0.2}
+RUBRIC_VERSION = 2
+CHAMBER_LABEL = {"senato": "Senato", "camera": "Camera"}
+CHAMBER_SUBJECT = {"senato": "Il Senato", "camera": "La Camera"}
 
 
 class Score(BaseModel):
@@ -52,34 +57,82 @@ class EvaluationJSON(BaseModel):
 
     scores: dict[str, _ScoreJSON] = Field(alias="punteggi")
     summary: str = Field(alias="riepilogo")
+    financial_impact: _ScoreJSON | None = Field(default=None, alias="impatto_finanziario")
+    allocates_resources: bool | None = Field(default=None, alias="alloca_risorse")
+    estimated_amount_eur: float | None = Field(default=None, alias="importo_stimato_eur")
 
 
 def evaluation_prompt(eme: Amendment) -> str:
     kind = "Ordine del giorno" if eme.type == "G" else "Emendamento"
     seat = "Commissione" if eme.committee_seat else "Assemblea"
+    chamber = CHAMBER_LABEL.get(eme.chamber, "Senato")
+    subject = CHAMBER_SUBJECT.get(eme.chamber, "Il Senato")
     return (
         "Sei un analista parlamentare indipendente. Valuta l'utilita' per l'interesse pubblico "
         "di questo emendamento italiano.\n\n"
         f"EMENDAMENTO: {kind} {eme.number} al {eme.bill or eme.act_uri} "
-        f"(Senato, {eme.date or 'data n/d'}, sede: {seat})\n"
+        f"({chamber}, {eme.date or 'data n/d'}, sede: {seat})\n"
+        f"{subject} e' l'organo presso cui l'atto e' stato presentato.\n"
         f'TESTO:\n"""{eme.text or "(testo non disponibile)"}"""\n\n'
         "Criteri (punteggio 0-10 ciascuno, con motivazione di 1-2 frasi):\n"
         "- trasparenza: contributo a trasparenza democratica, legalita', accountability\n"
         "- salute: impatto (diretto o indiretto) su salute pubblica\n"
         "- ambiente: impatto su ambiente, clima, territorio\n"
         "- concretezza: efficacia tecnica e specificita' (punta basso le disposizioni vaghe o solo propagandistiche)\n\n"
+        "Valuta inoltre, separatamente e senza farlo pesare sui criteri precedenti:\n"
+        "- impatto_finanziario: quanto l'atto incide sull'allocazione di denaro pubblico (0 = nessun effetto "
+        "sulla spesa o sulle entrate; 10 = stanzia, sposta o taglia risorse rilevanti), con motivazione di 1-2 frasi\n"
+        "- alloca_risorse: true se l'atto stanzia, aumenta, riduce o sposta risorse pubbliche "
+        "(anche come impegno al Governo), altrimenti false\n"
+        "- importo_stimato_eur: importo complessivo in euro esplicitamente indicato nel testo "
+        "(numero senza separatori, es. 5000000); null se il testo non indica un importo\n\n"
         "Rispondi SOLO con JSON valido:\n"
         '{"punteggi":{"trasparenza":{"punteggio":N,"motivazione":"..."},'
         '"salute":{"punteggio":N,"motivazione":"..."},'
         '"ambiente":{"punteggio":N,"motivazione":"..."},'
         '"concretezza":{"punteggio":N,"motivazione":"..."}},'
-        '"riepilogo":"2-3 frasi sul valore complessivo"}'
+        '"riepilogo":"2-3 frasi sul valore complessivo",'
+        '"impatto_finanziario":{"punteggio":N,"motivazione":"..."},'
+        '"alloca_risorse":true,'
+        '"importo_stimato_eur":null}'
     )
 
 
 def composite_score(scores: list[Score]) -> float:
     tot = sum(RUBRIC.get(s.criterion, 0) * s.score for s in scores)
     return round(tot, 1)
+
+
+def build_evaluation(eme: Amendment, parsed: EvaluationJSON) -> Evaluation:
+    """Rubric v2: the 4 weighted criteria plus the financial fields stored in the
+    valutazioni columns (never in punteggi, so score_totale stays comparable)."""
+    if parsed.financial_impact is None or parsed.allocates_resources is None:
+        raise ValueError("rubric v2 response without impatto_finanziario/alloca_risorse")
+    scores = [
+        Score(criterion=c, score=s.score, rationale=s.rationale)
+        for c, s in parsed.scores.items()
+    ]
+    impact = min(10.0, max(0.0, parsed.financial_impact.score))
+    amount = parsed.estimated_amount_eur
+    if amount is not None:
+        if not math.isfinite(amount):
+            amount = None
+        elif amount < 0:  # the model may express a cut as negative: store the absolute value
+            amount = abs(amount)
+    return Evaluation(
+        amendment_id=eme.id,
+        scores=scores,
+        total_score=composite_score(scores),
+        summary=parsed.summary,
+        model=MODEL,
+        ts=datetime.now(timezone.utc).isoformat(),
+        rubric_version=RUBRIC_VERSION,
+        text_hash=eme.text_hash or testo_hash(eme.text),
+        financial_impact=impact,
+        allocates_resources=parsed.allocates_resources,
+        estimated_amount_eur=amount,
+        financial_rationale=parsed.financial_impact.rationale,
+    )
 
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=120), retry_policy_max_attempts=2)
@@ -94,18 +147,7 @@ async def evaluate_amendment(eme: Amendment) -> Evaluation:
         temperature=0.2,
     )
     parsed = EvaluationJSON.model_validate_json(resp.choices[0].message.content)
-    scores = [
-        Score(criterion=c, score=s.score, rationale=s.rationale)
-        for c, s in parsed.scores.items()
-    ]
-    return Evaluation(
-        amendment_id=eme.id,
-        scores=scores,
-        total_score=composite_score(scores),
-        summary=parsed.summary,
-        model=MODEL,
-        ts=datetime.now(timezone.utc).isoformat(),
-    )
+    return build_evaluation(eme, parsed)
 
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=180), retry_policy_max_attempts=2)
