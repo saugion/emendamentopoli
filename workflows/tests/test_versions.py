@@ -111,3 +111,24 @@ async def test_save_senato_amendments_upserts_and_calls_rpc(monkeypatch):
     assert upsert_body[0]["camera"] == "senato"
     rpc_body = json.loads(bodies[1])
     assert rpc_body == {"p_chiavi": ["senato:19:1521998:G:A:G4.300"]}
+
+
+def test_camera_riformulazione_marks_previous_non_current():
+    fake = FakeSupabase()
+    key = "camera:19:odg:9/03076/003"
+    fake.emendamenti["camera:19:odg:9/03076/003#v1"] = {
+        "id": "camera:19:odg:9/03076/003#v1",
+        "chiave_naturale": key,
+        "ordine_versione": 1,
+    }
+    fake.emendamenti["camera:19:odg:9/03076/003#v2"] = {
+        "id": "camera:19:odg:9/03076/003#v2",
+        "chiave_naturale": key,
+        "ordine_versione": 2,
+    }
+    fake.rpc_ricalcola_versioni([key])
+    v1 = fake.emendamenti["camera:19:odg:9/03076/003#v1"]
+    v2 = fake.emendamenti["camera:19:odg:9/03076/003#v2"]
+    assert v2["corrente"] is True and v2["versione"] == 2 and v2["superato_da"] is None
+    assert v1["corrente"] is False and v1["versione"] == 1
+    assert v1["superato_da"] == "camera:19:odg:9/03076/003#v2"
