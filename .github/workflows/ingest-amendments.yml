@@ -3,27 +3,72 @@ name: Ingest amendments (manual)
 on:
   workflow_dispatch:
     inputs:
-      start_date:
-        description: "Start of the period to ingest (YYYY-MM-DD, e.g. 2026-11-01)"
+      source:
+        description: "Source to ingest"
         required: true
+        type: choice
+        options:
+          - senato
+          - camera_odg
+          - camera_atti
+          - camera_emendamenti
+        default: senato
+      start_date:
+        description: "Start of the period (YYYY-MM-DD). Required for senato; camera_odg: empty = incremental (cursor), set = backfill window on dc:date"
+        required: false
         type: string
+        default: ""
       end_date:
-        description: "End of the period (YYYY-MM-DD, inclusive); empty = today (Europe/Rome)"
+        description: "End of the period (YYYY-MM-DD, inclusive). senato: empty = today (Europe/Rome). camera_odg: empty = same day as start_date"
         required: false
         type: string
         default: ""
       legislature:
-        description: "Senate legislature"
+        description: "Legislature (Senate: any; Camera workflows: only 19)"
         required: false
         type: string
         default: "19"
       limit:
-        description: "Cap of amendments to scan (SPARQL batches of 100; must cover the whole period, max 20000)"
+        description: "senato only: cap of amendments to scan (SPARQL batches of 100; must cover the whole period, max 20000)"
         required: false
         type: string
         default: "5000"
+      max_items:
+        description: "camera_odg only: max sicross pages per execution (1-5000)"
+        required: false
+        type: string
+        default: "1500"
+      atti:
+        description: "camera_emendamenti only: comma-separated atto numbers for a pilot (e.g. 3133,3106,3121); empty = cursor mode"
+        required: false
+        type: string
+        default: ""
+      max_atti:
+        description: "camera_emendamenti only: atto pages to (re)discover (0-3500)"
+        required: false
+        type: string
+        default: "300"
+      max_liste:
+        description: "camera_emendamenti only: list pages to check (0-5000)"
+        required: false
+        type: string
+        default: "600"
+      max_detail:
+        description: "camera_emendamenti only: detail pages to fetch (0-5000)"
+        required: false
+        type: string
+        default: "2500"
+      full:
+        description: "camera_atti only: ignore the cursor and re-read all bills"
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
+
+concurrency:
+  group: ingest-${{ inputs.source }}
+  cancel-in-progress: false
 
 jobs:
   ingest:
@@ -31,19 +76,29 @@ jobs:
     timeout-minutes: 180
     env:
       MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      SOURCE: ${{ inputs.source }}
       START_DATE: ${{ inputs.start_date }}
       END_DATE_INPUT: ${{ inputs.end_date }}
       LEGISLATURE: ${{ inputs.legislature }}
       LIMIT: ${{ inputs.limit }}
-      WORKFLOW_NAME: emendamenti-giornalieri
+      MAX_ITEMS: ${{ inputs.max_items }}
+      ATTI: ${{ inputs.atti }}
+      MAX_ATTI: ${{ inputs.max_atti }}
+      MAX_LISTE: ${{ inputs.max_liste }}
+      MAX_DETAIL: ${{ inputs.max_detail }}
+      FULL: ${{ inputs.full }}
       DEPLOYMENT_NAME: emendamentopoli
       API_BASE: https://api.mistral.ai/v1
     steps:
       - name: Validate inputs
         run: |
           set -euo pipefail
-          if [[ -z "$START_DATE" ]]; then
-            echo "start_date is required" >&2
+          case "$SOURCE" in
+            senato|camera_odg|camera_atti|camera_emendamenti) ;;
+            *) echo "unknown source: $SOURCE" >&2; exit 1 ;;
+          esac
+          if [[ "$SOURCE" == "senato" && -z "$START_DATE" ]]; then
+            echo "start_date is required for source=senato" >&2
             exit 1
           fi
           for v in START_DATE END_DATE_INPUT; do
@@ -53,32 +108,82 @@ jobs:
               exit 1
             fi
           done
-          for v in LEGISLATURE LIMIT; do
+          if [[ "$SOURCE" == "camera_odg" && -z "$START_DATE" && -n "$END_DATE_INPUT" ]]; then
+            echo "end_date requires start_date for source=camera_odg" >&2
+            exit 1
+          fi
+          for v in LEGISLATURE LIMIT MAX_ITEMS MAX_ATTI MAX_LISTE MAX_DETAIL; do
             if ! [[ "${!v}" =~ ^[0-9]+$ ]]; then
               echo "$v must be an integer" >&2
               exit 1
             fi
           done
+          if [[ "$SOURCE" != "senato" && "$LEGISLATURE" != "19" ]]; then
+            echo "Camera workflows support only legislature 19" >&2
+            exit 1
+          fi
+          if [[ -n "$ATTI" && ! "$ATTI" =~ ^[0-9A-Za-z-]+(,[0-9A-Za-z-]+)*$ ]]; then
+            echo "atti must be a comma-separated list of atto numbers (e.g. 3133,3106)" >&2
+            exit 1
+          fi
           if [[ -z "$MISTRAL_API_KEY" ]]; then
             echo "Missing MISTRAL_API_KEY secret (Settings > Secrets and variables > Actions)" >&2
             exit 1
           fi
 
-      - name: Start workflow execution ${{ env.WORKFLOW_NAME }}
+      - name: Start workflow execution
         id: start
         run: |
           set -euo pipefail
-          END_DATE="$END_DATE_INPUT"
-          if [[ -z "$END_DATE" ]]; then
-            END_DATE="$(TZ=Europe/Rome date +%F)"
-          fi
-          echo "Ingest period: $START_DATE .. $END_DATE (legislature $LEGISLATURE, limit $LIMIT, deployment $DEPLOYMENT_NAME)"
-          PAYLOAD="$(jq -n \
-            --arg date "$START_DATE" \
-            --arg end_date "$END_DATE" \
-            --argjson legislature "$LEGISLATURE" \
-            --argjson limit "$LIMIT" \
-            '{input: {date: $date, end_date: $end_date, legislature: $legislature, limit: $limit}, wait_for_result: false}')"
+          case "$SOURCE" in
+            senato)
+              WORKFLOW_NAME=emendamenti-giornalieri
+              END_DATE="$END_DATE_INPUT"
+              if [[ -z "$END_DATE" ]]; then
+                END_DATE="$(TZ=Europe/Rome date +%F)"
+              fi
+              echo "Ingest period: $START_DATE .. $END_DATE (legislature $LEGISLATURE, limit $LIMIT, deployment $DEPLOYMENT_NAME)"
+              PAYLOAD="$(jq -n \
+                --arg date "$START_DATE" \
+                --arg end_date "$END_DATE" \
+                --argjson legislature "$LEGISLATURE" \
+                --argjson limit "$LIMIT" \
+                '{input: {date: $date, end_date: $end_date, legislature: $legislature, limit: $limit}, wait_for_result: false}')"
+              ;;
+            camera_odg)
+              WORKFLOW_NAME=camera-odg-giornalieri
+              PAYLOAD="$(jq -n \
+                --arg date "$START_DATE" \
+                --arg end_date "$END_DATE_INPUT" \
+                --argjson legislature "$LEGISLATURE" \
+                --argjson max_items "$MAX_ITEMS" \
+                '{input: ({legislature: $legislature, max_items: $max_items, evaluate: true}
+                          + (if $date == "" then {} else {date: $date} end)
+                          + (if $end_date == "" then {} else {end_date: $end_date} end)),
+                  wait_for_result: false}')"
+              ;;
+            camera_atti)
+              WORKFLOW_NAME=camera-atti
+              PAYLOAD="$(jq -n \
+                --argjson legislature "$LEGISLATURE" \
+                --argjson full "$FULL" \
+                '{input: {legislature: $legislature, full: $full}, wait_for_result: false}')"
+              ;;
+            camera_emendamenti)
+              WORKFLOW_NAME=camera-emendamenti-giornalieri
+              PAYLOAD="$(jq -n \
+                --arg atti "$ATTI" \
+                --argjson legislature "$LEGISLATURE" \
+                --argjson max_atti "$MAX_ATTI" \
+                --argjson max_liste "$MAX_LISTE" \
+                --argjson max_detail "$MAX_DETAIL" \
+                '{input: ({legislature: $legislature, max_atti: $max_atti, max_liste: $max_liste, max_detail: $max_detail, evaluate: true}
+                          + (if $atti == "" then {} else {atti: ($atti | split(","))} end)),
+                  wait_for_result: false}')"
+              ;;
+          esac
+          echo "Workflow: $WORKFLOW_NAME"
+          echo "$PAYLOAD" | jq .
           RESP="$(curl -sS -X POST "$API_BASE/workflows/$WORKFLOW_NAME/execute" \
             -H "Authorization: Bearer $MISTRAL_API_KEY" \
             -H "Content-Type: application/json" \
