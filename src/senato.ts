@@ -90,14 +90,46 @@ export async function arricchisciConTesto(eme: Emendamento): Promise<Emendamento
     );
   }
   // firmatari: <an:docProponent> nel preface (il primo e' il proponente)
-  const proponenti = [
-    ...xml.matchAll(/<an:docProponent\b[^>]*>([\s\S]*?)<\/an:docProponent>/g),
-  ]
-    .map((m) => decode(m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()))
-    .filter((n) => n.length > 0);
-  eme.firmatari = [...new Set(proponenti)];
+  const f = estraiFirmatari(xml, eme.legislatura);
+  eme.firmatari = f.nomi;
+  eme.firmatari_uri = f.uri;
 
   return eme;
+}
+
+/**
+ * Estrae i firmatari dal preface AKN: ogni <an:docProponent> referenzia
+ * (refersTo) una <an:TLCPerson> in <an:references> con href verso
+ * dati.senato.it, da cui si ricava l'URL della scheda profilo su senato.it.
+ */
+export function estraiFirmatari(
+  xml: string,
+  legislatura: number,
+): { nomi: string[]; uri: string[] } {
+  const persone = new Map<string, string>();
+  for (const m of xml.matchAll(/<(?:an:)?TLCPerson\b[^>]*>/g)) {
+    const id = / id="([^"]+)"/.exec(m[0])?.[1];
+    const href = / href="([^"]+)"/.exec(m[0])?.[1];
+    if (id && href) persone.set(id, href);
+  }
+  const nomi: string[] = [];
+  const uri: string[] = [];
+  for (const m of xml.matchAll(/<(?:an:)?docProponent\b([^>]*)>([\s\S]*?)<\/(?:an:)?docProponent>/g)) {
+    const nome = decode(m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+    if (!nome || nomi.includes(nome)) continue;
+    const ref = / refersTo="#([^"]+)"/.exec(m[1])?.[1];
+    const href = ref ? persone.get(ref) : undefined;
+    nomi.push(nome);
+    uri.push(href ? profiloSenatore(href, legislatura) : "");
+  }
+  return { nomi, uri };
+}
+
+/** href dati.senato.it (es. .../senatore/407 o .../29521) -> scheda profilo su senato.it. */
+function profiloSenatore(href: string, legislatura: number): string {
+  const m = href.match(/^https?:\/\/dati\.senato\.it\/(?:senatore\/)?(\d+)\/?$/);
+  if (!m) return href.replace(/^http:/, "https:");
+  return `https://www.senato.it/leg/${legislatura}/BGT/Schede/Attsen/${m[1].padStart(8, "0")}.htm`;
 }
 
 function decode(s: string): string {
