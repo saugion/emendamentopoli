@@ -39,12 +39,16 @@ Zero dipendenze runtime: richiede Node 22+ (TypeScript nativo).
 ## Setup Supabase
 
 1. Crea un progetto su [supabase.com](https://supabase.com).
-2. Esegui in ordine `supabase/migrations/0001_schema.sql` e
-   `supabase/migrations/0002_firmatari.sql` nel SQL Editor
+2. Esegui in ordine `supabase/migrations/0001_schema.sql`,
+   `supabase/migrations/0002_firmatari.sql` e
+   `supabase/migrations/0003_firmatari_uri.sql` nel SQL Editor
    (oppure `npx supabase db push` con il repo collegato).
    La 0002 aggiunge la colonna `firmatari` (cognomi dei senatori firmatari)
    con indice trigram per la ricerca sui nomi; senza di essa la web app
    funziona comunque (i nomi vengono mostrati solo dopo re-ingest).
+   La 0003 aggiunge `firmatari_uri` (URL della scheda profilo su senato.it,
+   allineati a `firmatari`), usato per il link al profilo di ciascun
+   firmatario nel pannello dettaglio.
 3. Imposta le variabili d'ambiente `SUPABASE_URL` e `SUPABASE_KEY`
    (publishable/anon key; vedi `.env.example`).
 
@@ -61,7 +65,8 @@ prototipo: da raffinare prima di un uso reale in produzione.
 - `src/main.ts` - CLI demo
 - `supabase/migrations/0001_schema.sql` - schema del database
 - `supabase/migrations/0002_firmatari.sql` - colonna `firmatari` + indice trigram (pg_trgm)
-- `index.html` - web app statica zero-dipendenze: esplora migliaia di emendamenti con ricerca full-text (testo/ddl/numero/riepilogo/firmatari), filtri per tipo e score, ordinamento, scroll infinito e pannello dettaglio con testo completo e firmatari; tema chiaro/scuro; stato in URL (hash)
+- `supabase/migrations/0003_firmatari_uri.sql` - colonna `firmatari_uri` (link al profilo senato.it dei firmatari)
+- `index.html` - web app statica zero-dipendenze: esplora migliaia di emendamenti con ricerca full-text (testo/ddl/numero/riepilogo/firmatari), filtri per tipo e score, ordinamento, scroll infinito e pannello dettaglio con testo completo, firmatari con link al profilo su senato.it; tema chiaro/scuro; stato in URL (hash)
 
 ## Roadmap
 

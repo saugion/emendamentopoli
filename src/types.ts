@@ -14,6 +14,7 @@ export interface Emendamento {
   testo?: string;       // testo plain-text dell'emendamento
   ddl?: string;         // es. "Ddl 391"
   firmatari?: string[]; // cognomi dei senatori firmatari (il primo e' il proponente)
+  firmatari_uri?: string[]; // URL profilo senato.it, allineati a firmatari ("" se ignoto)
 }
 
 export interface Punteggio {
