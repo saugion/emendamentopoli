@@ -336,7 +336,7 @@ async def test_saved_map_reads_all_pages(monkeypatch) -> None:
     async def _select_all(client, table, select, filters=None, page_size=1000, key="id"):
         assert table == "emendamenti"
         assert select == "id,data,firmatari"
-        assert filters == {"legislatura": "eq.19"}
+        assert filters == {"legislatura": "eq.19", "camera": "eq.senato"}
         return rows
 
     monkeypatch.setattr(mod, "select_all", _select_all)
