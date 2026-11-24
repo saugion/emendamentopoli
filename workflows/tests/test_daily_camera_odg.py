@@ -83,10 +83,13 @@ def _patch_pages(monkeypatch, pages: list[list[mod.CameraOdgItem]]):
 
 
 def test_camera_odg_workflow_is_discoverable():
+    from amendments_worker.workflows.camera_atti import CameraAttiWorkflow
+
     classes = workflows.discover_all_workflows_in_package("amendments_worker.workflows")
     assert DailyAmendmentsWorkflow in classes
     assert EvaluateMissingWorkflow in classes
     assert mod.DailyCameraOdgWorkflow in classes
+    assert CameraAttiWorkflow in classes
 
 
 async def _run(monkeypatch, fake: FakeSupabase, items, routes, **input_kw):
