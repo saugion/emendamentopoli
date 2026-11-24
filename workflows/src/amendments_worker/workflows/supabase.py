@@ -147,11 +147,12 @@ async def amendments_without_evaluation(limit: int) -> list[Amendment]:
         "select": (
             "id,legislature:legislatura,number:numero,type:tipo,committee_seat:sede_commissione,"
             "act_uri:atto_uri,bill:ddl,text_url:url_testo,text_xml_url:url_testo_xml,date:data,text:testo"
-            ",valutazioni()"
+            ",chamber:camera,relevant_spending:rilevante_spesa,valutazioni()"
         ),
         "valutazioni": "is.null",
         "corrente": "is.true",
         "testo": "not.is.null",
+        "rilevante_spesa": "is.true",
         "order": "data.desc.nullslast",
         "limit": str(limit),
     }

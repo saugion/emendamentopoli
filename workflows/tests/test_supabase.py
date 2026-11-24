@@ -136,6 +136,9 @@ async def test_amendments_without_evaluation_uses_aliases(transport):
     assert "valutazioni.id" not in params
     assert params["corrente"] == "is.true"
     assert params["testo"] == "not.is.null"
+    assert params["rilevante_spesa"] == "is.true"
+    assert "chamber:camera" in params["select"]
+    assert "relevant_spending:rilevante_spesa" in params["select"]
     assert params["order"] == "data.desc.nullslast"
     assert params["limit"] == "500"
     assert result[0].id == "x" and result[0].legislature == 19 and result[0].bill == "Ddl 391"
