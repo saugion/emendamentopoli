@@ -25,11 +25,14 @@ from ..sources.camera_odg import (
     CameraOdgItem,
     camera_odg_rows,
     metadati_hash,
+    odg_atto,
     parse_odg_bindings,
     parse_sicross,
     query_camera_odg,
 )
 from ..sources.common import CAMERA_HTML_TIMEOUT, SPARQL_CAMERA_ENDPOINT, polite_get
+from ..sources.rilevanza import calcola_rilevanza
+from .evaluation import evaluate_and_save
 
 CAMERA_ODG_CHUNK = 50
 CAMERA_ODG_RECENT_DAYS = 14
@@ -120,7 +123,7 @@ async def db_current_rows(keys: list[str]) -> dict[str, dict]:
         rows = await source_supabase.select_all(
             client,
             "emendamenti",
-            "id,chiave_naturale,metadati_hash,esito,data",
+            "id,chiave_naturale,metadati_hash,esito,data,ordine_versione",
             {"corrente": "is.true", "chiave_naturale": in_list},
         )
     return {r["chiave_naturale"]: r for r in rows}
@@ -193,6 +196,7 @@ async def process_camera_odg_chunk(
 ) -> OdgChunkResult:
     keys = [f"camera:19:odg:{i.identifier.strip().upper()}" for i in items]
     existing = await db_current_rows(keys)
+    atti = await db_atti_flags(19)
     fetched = 0
     not_found = 0
     skipped = 0
@@ -229,7 +233,23 @@ async def process_camera_odg_chunk(
             except Exception as e:
                 errors.append(f"{item.identifier}: {type(e).__name__}: {e}")
                 page = None
-            rows.extend(camera_odg_rows(item, page))
+            item_rows = camera_odg_rows(item, page)
+            flags = _odg_atto_flags(item, atti)
+            for r in item_rows:
+                r["rilevante_spesa"], r["rilevanza_motivo"] = calcola_rilevanza(r["testo"], flags)
+            rows.extend(item_rows)
+    # current row per key = highest ordine_versione among the new rows and the stored one
+    max_ordine: dict[str, int] = {k: (existing[k].get("ordine_versione") or 0) for k in keys if k in existing}
+    for r in rows:
+        k = r["chiave_naturale"]
+        max_ordine[k] = max(max_ordine.get(k, 0), r["ordine_versione"])
+    to_evaluate = [
+        r["id"]
+        for r in rows
+        if r.get("rilevante_spesa") is True
+        and r.get("testo")
+        and r["ordine_versione"] == max_ordine.get(r["chiave_naturale"])
+    ]
     saved_ids = [r["id"] for r in rows]
     if rows:
         await db_save_odg_rows(rows)
@@ -241,9 +261,25 @@ async def process_camera_odg_chunk(
         saved_rows=len(rows),
         saved_ids=saved_ids,
         last_modified=handled[-1].modified if handled else None,
-        to_evaluate=[],  # filled from Phase 2 (money-relevance pre-filter)
+        to_evaluate=to_evaluate,
         errors=errors,
     )
+
+
+def _odg_atto_flags(item: CameraOdgItem, atti: dict[str, dict]) -> dict[str, bool]:
+    """Level A signals: atti table flags by atto_uri plus the SPARQL title/identifier rules."""
+    flags: dict[str, bool] = {}
+    atto_uri, _, _ = odg_atto(item.identifier.strip())
+    a = atti.get(atto_uri) if atto_uri else None
+    if a:
+        flags["atto_dl"] = bool(a.get("is_dl_conversione"))
+        flags["atto_bilancio"] = bool(a.get("is_bilancio"))
+        flags["atto_commissione_bilancio"] = bool(a.get("is_commissione_bilancio_referente"))
+    if item.identifier.strip().upper().startswith("9/DOC.VIII,") or "BILANCIO INTERNO" in item.titolo:
+        flags["atto_bilancio_interno"] = True
+    if "P.D.L. DI BILANCIO" in item.titolo:
+        flags["atto_bilancio"] = True
+    return flags
 
 
 @workflows.workflow.define(
@@ -331,8 +367,6 @@ class DailyCameraOdgWorkflow:
             await run_pass("2000-01-01T00:00:00Z", recent_from, recent_to, force=True)
 
         if input.evaluate and eval_ids:
-            from .evaluation import evaluate_and_save
-
             sem = asyncio.Semaphore(10)
 
             async def _eval(amendment_id: str):
