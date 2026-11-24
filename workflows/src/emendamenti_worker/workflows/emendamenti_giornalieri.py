@@ -16,23 +16,12 @@ from pydantic import BaseModel, Field
 
 import mistralai.workflows as workflows
 
+from .modelli import Emendamento
+from .valutazione import salva_valutazioni, valuta_emendamento
+
 SPARQL_ENDPOINT = "https://dati.senato.it/sparql"
 UA = "curl/8.5.0"  # CloudFront accetta solo user-agent curl-like su questi path
 FUSO_ORARIO = "Europe/Rome"
-
-
-class Emendamento(BaseModel):
-    id: str  # URI dati.senato.it
-    legislatura: int
-    numero: str  # es. "1.30"
-    tipo: str  # E = emendamento, G = ordine del giorno
-    sede_commissione: bool
-    atto_uri: str
-    url_testo: str
-    url_testo_xml: str
-    data: str | None = None  # data di presentazione (YYYY-MM-DD), dal testo AKN
-    ddl: str | None = None  # es. "Ddl 391"
-    testo: str | None = None  # testo plain-text
 
 
 class EmendamentiGiornalieriInput(BaseModel):
@@ -57,8 +46,10 @@ class EmendamentiGiornalieriOutput(BaseModel):
     analizzati: int
     trovati: int
     salvati: int
+    valutati: int
     ids: list[str]
     errori: list[str]
+    errori_valutazione: list[str]
 
 
 def query_metadati_recenti(legislatura: int, limite: int) -> str:
@@ -226,8 +217,8 @@ async def salva_emendamenti(emendamenti: list[Emendamento]) -> int:
     workflow_display_name="Emendamenti del giorno prima (Senato)",
     workflow_description=(
         "Scarica da dati.senato.it (SPARQL, CC BY 3.0) gli emendamenti presentati nel giorno "
-        "indicato (default: ieri, fuso Europe/Rome), recupera i testi Akoma Ntoso e salva "
-        "gli emendamenti su Supabase con upsert per id."
+        "indicato (default: ieri, fuso Europe/Rome), recupera i testi Akoma Ntoso, salva "
+        "gli emendamenti su Supabase (upsert per id) e li valuta con Mistral (valutazioni + punteggi)."
     ),
     execution_timeout=timedelta(hours=2),
 )
@@ -248,6 +239,17 @@ class EmendamentiGiornalieriWorkflow:
         analizzati = [r for r in risultati if not isinstance(r, BaseException)]
         del_giorno = [e for e in analizzati if e.data == data]
         salvati = await salva_emendamenti(del_giorno) if del_giorno else 0
+        ris_val = await asyncio.gather(
+            *[valuta_emendamento(e) for e in del_giorno],
+            return_exceptions=True,
+        )
+        errori_valutazione = [
+            f"{e.id}: {type(r).__name__}: {r}"
+            for e, r in zip(del_giorno, ris_val)
+            if isinstance(r, BaseException)
+        ]
+        valutazioni = [r for r in ris_val if not isinstance(r, BaseException)]
+        valutati = await salva_valutazioni(valutazioni) if valutazioni else 0
         return EmendamentiGiornalieriOutput(
             data=data,
             legislatura=input.legislatura,
@@ -255,6 +257,8 @@ class EmendamentiGiornalieriWorkflow:
             analizzati=len(analizzati),
             trovati=len(del_giorno),
             salvati=salvati,
+            valutati=valutati,
             ids=[e.id for e in del_giorno],
             errori=errori,
+            errori_valutazione=errori_valutazione,
         )

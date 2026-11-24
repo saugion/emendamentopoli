@@ -4,6 +4,8 @@ Worker [Mistral Workflows](https://docs.mistral.ai/studio/workflows/overview) ch
 gli emendamenti del giorno prima e li salva su Supabase.
 
 - **Workflow**: `emendamenti-giornalieri`
+  - ora valuta anche con Mistral (via service account del deployment, nessuna API key) e scrive `valutazioni` + `punteggi`
+- **Workflow**: `valuta-emendamenti-mancanti` (backfill: emendamenti in Supabase senza valutazione → valutazione LLM)
   - input: `data` (YYYY-MM-DD, default ieri in `Europe/Rome`), `legislatura` (default 19), `limite` (default 1000)
   - step: SPARQL su `dati.senato.it` (open data, CC BY 3.0) sugli emendamenti piu' recenti → testi Akoma Ntoso → filtro per data di presentazione → upsert su `rest/v1/emendamenti` (`on_conflict=id`)
 - **Schedule**: ogni notte alle 03:00 `Europe/Rome` (cron `0 3 * * *`), creato via API/Studio sullo deployment `emendamentopoli`
