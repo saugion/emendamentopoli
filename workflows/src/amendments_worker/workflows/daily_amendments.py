@@ -90,7 +90,10 @@ async def saved_amendments_map(legislature: int) -> dict[str, dict[str, str | No
     base, key = supabase_base_and_key()
     async with httpx.AsyncClient(timeout=45.0, headers=supabase_headers(key)) as client:
         rows = await select_all(
-            client, "emendamenti", "id,data,firmatari", {"legislatura": f"eq.{legislature}"}
+            client,
+            "emendamenti",
+            "id,data,firmatari",
+            {"legislatura": f"eq.{legislature}", "camera": "eq.senato"},
         )
     return {r["id"]: {"data": r["data"], "firmatari": r["firmatari"]} for r in rows}
 
