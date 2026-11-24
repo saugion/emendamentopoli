@@ -12,6 +12,9 @@ export function createStore(config) {
   var key = config.key || "";
   var hasSignatories = false;
   var hasSignatoryUris = false;
+  var hasChamber = false;   // migration 0005 (camera, esito)
+  var hasCorrente = false;  // migration 0004 (versions)
+  var hasFinance = false;   // migration 0006 (impatto_finanziario)
 
   function api(path, count) {
     var h = { apikey: key, Authorization: "Bearer " + key };
@@ -33,11 +36,12 @@ export function createStore(config) {
     });
   }
 
+  function emExtra() { return (hasSignatories ? ",firmatari" : "") + (hasSignatoryUris ? ",firmatari_uri" : "") + (hasChamber ? ",camera,esito" : ""); }
   function selList() {
-    return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(numero,tipo,ddl,data,url_testo" + (hasSignatories ? ",firmatari" : "") + (hasSignatoryUris ? ",firmatari_uri" : "") + "),punteggi(criterio,punteggio,motivazione)";
+    return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(numero,tipo,ddl,data,url_testo" + emExtra() + "),punteggi(criterio,punteggio,motivazione)";
   }
   function selDetail() {
-    return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(id,numero,tipo,ddl,data,testo,url_testo,atto_uri,sede_commissione" + (hasSignatories ? ",firmatari" : "") + (hasSignatoryUris ? ",firmatari_uri" : "") + "),punteggi(criterio,punteggio,motivazione)";
+    return "id,score_totale,riepilogo,modello,ts" + (hasFinance ? ",impatto_finanziario,alloca_risorse,importo_stimato_eur,motivazione_finanziaria" : "") + ",emendamenti!inner(id,numero,tipo,ddl,data,testo,url_testo,atto_uri,sede_commissione" + emExtra() + "),punteggi(criterio,punteggio,motivazione)";
   }
   function orderClause(sort) {
     if (sort === "score_asc") return "score_totale.asc.nullslast";
@@ -49,6 +53,8 @@ export function createStore(config) {
     var p = ["select=" + selList(), "order=" + orderClause(o.sort), "limit=" + o.limit, "offset=" + o.offset];
     if (o.minScore > 0) p.push("score_totale=gte." + o.minScore);
     if (o.type !== "all") p.push("emendamenti.tipo=eq." + o.type);
+    if (hasCorrente) p.push("emendamenti.corrente=eq.true");
+    if (hasChamber && o.chamber && o.chamber !== "all") p.push("emendamenti.camera=eq." + o.chamber);
     return p;
   }
   function searchOrClause(qs) {
@@ -57,7 +63,7 @@ export function createStore(config) {
     if (hasSignatories) emOr.push("firmatari.ilike." + pat);
     return Promise.all([
       api("valutazioni?select=id&or=(riepilogo.ilike." + pat + ")&limit=1000"),
-      api("emendamenti?select=id&or=(" + emOr.join(",") + ")&limit=1000")
+      api("emendamenti?select=id&or=(" + emOr.join(",") + ")" + (hasCorrente ? "&corrente=eq.true" : "") + "&limit=1000")
     ]).then(function (rs) {
       var valIds = rs[0].data.map(function (r) { return r.id; });
       var emIds = rs[1].data.map(function (r) { return '"' + String(r.id).replace(/"/g, "") + '"'; });
@@ -73,10 +79,23 @@ export function createStore(config) {
     init: function () {
       return Promise.all([
         api("emendamenti?select=firmatari&limit=1").catch(function () { return null; }),
-        api("emendamenti?select=firmatari_uri&limit=1").catch(function () { return null; })
+        api("emendamenti?select=firmatari_uri&limit=1").catch(function () { return null; }),
+        api("emendamenti?select=camera&limit=1").catch(function () { return null; }),
+        api("emendamenti?select=corrente&limit=1").catch(function () { return null; }),
+        api("valutazioni?select=impatto_finanziario&limit=1").catch(function () { return null; })
       ]).then(function (rs) {
         hasSignatories = !!rs[0];
         hasSignatoryUris = !!rs[1];
+        hasChamber = !!rs[2];
+        hasCorrente = !!rs[3];
+        hasFinance = !!rs[4];
+        return {
+          signatories: hasSignatories,
+          signatoryUris: hasSignatoryUris,
+          chamber: hasChamber,
+          corrente: hasCorrente,
+          finance: hasFinance,
+        };
       });
     },
 
@@ -111,10 +130,10 @@ export function createStore(config) {
 
     stats: function () {
       return Promise.all([
-        api("valutazioni?select=id&limit=0", true),
-        api("valutazioni?select=id&score_totale=gte.7&limit=0", true),
-        api("valutazioni?select=id,emendamenti!inner(tipo)&emendamenti.tipo=eq.E&limit=0", true),
-        api("valutazioni?select=id,emendamenti!inner(tipo)&emendamenti.tipo=eq.G&limit=0", true),
+        api(hasCorrente ? "valutazioni?select=id,emendamenti!inner(corrente)&emendamenti.corrente=eq.true&limit=0" : "valutazioni?select=id&limit=0", true),
+        api(hasCorrente ? "valutazioni?select=id,emendamenti!inner(corrente)&emendamenti.corrente=eq.true&score_totale=gte.7&limit=0" : "valutazioni?select=id&score_totale=gte.7&limit=0", true),
+        api("valutazioni?select=id,emendamenti!inner(tipo)&emendamenti.tipo=eq.E" + (hasCorrente ? "&emendamenti.corrente=eq.true" : "") + "&limit=0", true),
+        api("valutazioni?select=id,emendamenti!inner(tipo)&emendamenti.tipo=eq.G" + (hasCorrente ? "&emendamenti.corrente=eq.true" : "") + "&limit=0", true),
         api("valutazioni?select=modello,ts&order=ts.desc.nullslast&limit=1")
       ]).then(function (rs) {
         return {

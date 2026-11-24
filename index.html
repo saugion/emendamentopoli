@@ -229,6 +229,9 @@ a.signatory svg:last-child { color: var(--muted-fg); }
   background: color-mix(in srgb, var(--bg) 85%, transparent); }
 
 footer { text-align: center; color: var(--muted-fg); font-size: 12px; padding: 26px 20px 34px; border-top: 1px solid var(--border); line-height: 1.7; }
+.cbadge { display: inline-block; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; padding: 1px 7px; border-radius: 999px; margin-left: 6px; border: 1px solid var(--border); color: var(--muted-fg); vertical-align: middle; }
+.cbadge.camera { color: #0ea5e9; border-color: #0ea5e9; }
+.cbadge.senato { color: #a855f7; border-color: #a855f7; }
 
 @media (max-width: 640px) {
   .card { gap: 12px; padding: 14px; }
@@ -264,7 +267,7 @@ footer { text-align: center; color: var(--muted-fg); font-size: 12px; padding: 2
 </header>
 
 <section class="hero">
-  <span class="badge"><span class="dot" aria-hidden="true"></span>Prototipo aperto · Senato, legislatura XIX</span>
+  <span class="badge"><span class="dot" aria-hidden="true"></span>Prototipo aperto · Senato e Camera, legislatura XIX</span>
   <h1>Quanto conta davvero<br><span class="grad">ogni emendamento?</span></h1>
   <p class="sub">Esplora le valutazioni di utilità pubblica degli emendamenti parlamentari italiani. Cerca, filtra e leggi il testo completo: migliaia di atti, un unico posto.</p>
   <div class="legend" aria-label="Rubrica di valutazione">
@@ -286,6 +289,8 @@ footer { text-align: center; color: var(--muted-fg); font-size: 12px; padding: 2
     <span class="count" id="count" aria-live="polite">Caricamento…</span>
     <span class="group-lbl">Tipo</span>
     <div class="chipgroup" id="cg-type" role="group" aria-label="Filtra per tipo"></div>
+    <span class="group-lbl" id="lbl-chamber" hidden>Ramo</span>
+    <div class="chipgroup" id="cg-chamber" role="group" aria-label="Filtra per ramo del Parlamento" hidden></div>
     <span class="group-lbl">Score</span>
     <div class="chipgroup" id="cg-score" role="group" aria-label="Filtra per score minimo"></div>
     <div class="seg" id="seg-sort" role="group" aria-label="Ordina risultati">
@@ -325,7 +330,11 @@ footer { text-align: center; color: var(--muted-fg); font-size: 12px; padding: 2
 </aside>
 
 <footer>
-  Dati: <a href="https://dati.senato.it" rel="noopener">Senato della Repubblica - dati.senato.it</a> (CC BY 3.0).
+  Dati: <a href="https://dati.senato.it" rel="noopener">Senato della Repubblica - dati.senato.it</a> (licenza <a href="https://creativecommons.org/licenses/by/3.0/it/" rel="noopener">CC BY 3.0</a>)
+  e <a href="https://dati.camera.it" rel="noopener">Camera dei deputati - dati.camera.it</a> (licenza <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.it" rel="noopener">CC BY-SA 4.0</a>);
+  testi degli atti da senato.it e documenti.camera.it.<br>
+  Le valutazioni pubblicate (score, punteggi, motivazioni e indicatori finanziari) sono un'elaborazione di Emendamentopoli
+  e sono rilasciate con licenza <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.it" rel="noopener">CC BY-SA 4.0</a>.
   Gli score sono valutazioni algoritmiche di supporto, non giudizi istituzionali.<br>
   <a href="https://github.com/saugion/emendamentopoli" rel="noopener">Codice sorgente</a><br>
   Made in EU, with <a href="https://mistral.ai" rel="noopener">Mistral AI</a> &middot; sito progettato e costruito con Mistral, azienda europea.
@@ -347,14 +356,19 @@ var CRIT_LABEL = { trasparenza: "Trasparenza", salute: "Salute", ambiente: "Ambi
 var TYPES = [["all", "Tutti"], ["E", "Emendamenti"], ["G", "O.d.G."]];
 var SCORES = [[0, "Tutti"], [5, "≥ 5"], [7, "≥ 7"], [8.5, "≥ 8,5"]];
 var SORTS = [["score_desc", "Score ↓"], ["score_asc", "Score ↑"], ["data_desc", "Recenti ↓"], ["data_asc", "Data ↑"]];
+var CHAMBERS = [["all", "Tutte"], ["senato", "Senato"], ["camera", "Camera"]];
+var CHAMBER_LABEL = { senato: "Senato", camera: "Camera" };
+var HAS_CHAMBER = false;   // migration 0005 (camera, esito), detected by store.init()
+var HAS_CORRENTE = false;  // migration 0004 (versions)
+var HAS_FINANCE = false;   // migration 0006 (impatto_finanziario)
 
-var state = { q: "", type: "all", minScore: 0, sort: "score_desc", items: [], total: null, loading: false, ended: false, error: null, seq: 0 };
+var state = { q: "", type: "all", chamber: "all", minScore: 0, sort: "score_desc", items: [], total: null, loading: false, ended: false, error: null, seq: 0 };
 var drawerId = null;
 var lastFocus = null;
 
 function $(id) { return document.getElementById(id); }
 var els = { q: $("q"), list: $("list"), count: $("count"), sentinel: $("sentinel"), loadMore: $("load-more"),
-  loadmsg: $("loadmsg"), end: $("end"), endText: $("end-text"), cgType: $("cg-type"), cgScore: $("cg-score"),
+  loadmsg: $("loadmsg"), end: $("end"), endText: $("end-text"), cgType: $("cg-type"), cgScore: $("cg-score"), cgChamber: $("cg-chamber"), lblChamber: $("lbl-chamber"),
   seg: $("seg-sort"), frow: $("frow"), scrim: $("scrim"), drawer: $("drawer"), dBody: $("d-body"),
   dTitle: $("d-title"), dMeta: $("d-meta"), dGauge: $("d-gauge"), dClose: $("d-close"), dPrev: $("d-prev"), dNext: $("d-next"),
   themeBtn: $("theme-btn"), icoSun: $("ico-sun"), icoMoon: $("ico-moon"), kbd: $("kbd-hint") };
@@ -381,6 +395,7 @@ function loadMore() {
   store.search({
     q: sanitizeQuery(state.q),
     type: state.type,
+    chamber: state.chamber,
     minScore: state.minScore,
     sort: state.sort,
     offset: state.items.length,
@@ -471,7 +486,7 @@ function showError(err) {
 function showEmpty() {
   hideSkeletons();
   var qs = sanitizeQuery(state.q);
-  var filtered = qs || state.type !== "all" || state.minScore > 0;
+  var filtered = qs || state.type !== "all" || state.chamber !== "all" || state.minScore > 0;
   var msg, sub;
   if (filtered) {
     msg = "Nessun risultato" + (qs ? " per «" + qs + "»" : "");
@@ -486,7 +501,7 @@ function showEmpty() {
     (filtered ? '<button class="btn primary" id="reset-filters" type="button">Azzera filtri e ricerca</button>' : "") + "</div>";
   if (filtered) {
     $("reset-filters").addEventListener("click", function () {
-      state.q = ""; state.type = "all"; state.minScore = 0;
+      state.q = ""; state.type = "all"; state.chamber = "all"; state.minScore = 0;
       els.q.value = "";
       syncChipGroups(); resetAndLoad();
     });
@@ -538,7 +553,7 @@ function cardHTML(v, i) {
   return '<article class="card" role="listitem" tabindex="0" data-id="' + esc(v.id) + '" style="animation-delay:' + Math.min(i, 12) * 35 + 'ms" aria-label="' + esc(title) + ', score ' + esc(fmtScore(v.score_totale)) + '">' +
     gaugeSVG(v.score_totale, 56) +
     '<div class="body"><div class="row1"><div><div class="title"><span class="tbadge ' + type + '">' + typeLabel + "</span>" +
-    '<span class="num">' + esc(e.numero || "?") + "</span></div>" +
+    '<span class="num">' + esc(e.numero || "?") + "</span>" + (e.camera ? '<span class="cbadge ' + esc(e.camera) + '">' + esc(CHAMBER_LABEL[e.camera] || e.camera) + "</span>" : "") + "</div>" +
     '<div class="meta"><span>' + esc(e.ddl || "atto non indicato") + '</span><span class="sep">·</span><span>' + esc(fmtDate(e.data)) + "</span></div>" + signatoriesHTML(e) + "</div></div>" +
     (v.riepilogo ? '<div class="summary">' + esc(v.riepilogo) + "</div>" : "") +
     (crit ? '<div class="crit">' + crit + "</div>" : "") +
@@ -601,10 +616,11 @@ function renderDetail(v) {
   els.dGauge.innerHTML = gaugeSVG(v.score_totale, 64);
   var g = els.dGauge.querySelector("svg.gauge");
   if (g) animateGauge(g, v.score_totale);
-  els.dTitle.innerHTML = '<span class="tbadge ' + type + '">' + typeLabel + '</span><span class="num">' + esc(e.numero || "?") + "</span>";
+  els.dTitle.innerHTML = '<span class="tbadge ' + type + '">' + typeLabel + '</span><span class="num">' + esc(e.numero || "?") + "</span>" + (e.camera ? '<span class="cbadge ' + esc(e.camera) + '">' + esc(CHAMBER_LABEL[e.camera] || e.camera) + "</span>" : "");
   els.dMeta.innerHTML =
     (e.ddl ? "<span><b>" + esc(e.ddl) + "</b></span>" : "") +
     "<span>" + esc(fmtDate(e.data)) + "</span>" +
+    (e.esito ? "<span>esito: <b>" + esc(String(e.esito).replace(/_/g, " ")) + "</b></span>" : "") +
     "<span>modello: <b>" + esc(v.modello || "?") + "</b></span>" +
     (e.url_testo ? '<span><a href="' + esc(e.url_testo) + '" target="_blank" rel="noopener">Fonte originale ↗</a></span>' : "");
   var rows = (v.punteggi || []).map(function (p) {
@@ -617,6 +633,7 @@ function renderDetail(v) {
   }).join("");
   var f = splitSignatories(e);
   var uris = splitSignatoryUris(e);
+  var profTitle = "Profilo su " + (e.camera === "camera" ? "camera.it" : "senato.it");
   var firPanel = f.length
     ? '<div class="panel"><h3>Firmatari (' + f.length + ")</h3><div class='signatory-list'>" +
       f.map(function (n, i) {
@@ -625,7 +642,7 @@ function renderDetail(v) {
         var u = uris[i] || "";
         var inner = star + esc(n) + (u ? ext : "");
         return u
-          ? "<a class='signatory' href='" + esc(u) + "' target='_blank' rel='noopener' title='Profilo su senato.it'>" + inner + "</a>"
+          ? "<a class='signatory' href='" + esc(u) + "' target='_blank' rel='noopener' title='" + esc(profTitle) + "'>" + inner + "</a>"
           : "<span class='signatory'>" + inner + "</span>";
       }).join("") + "</div></div>"
     : "";
@@ -635,7 +652,13 @@ function renderDetail(v) {
     (v.ts ? "<span>valutato il " + esc(new Date(v.ts).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })) + "</span>" : "") + "</div></div>" +
     firPanel +
     (rows ? '<div class="panel"><h3>Criteri</h3>' + rows + "</div>" : "") +
-    '<div class="panel"><h3>Testo dell\u2019emendamento</h3>' +
+    (v.impatto_finanziario != null ?
+      '<div class="panel"><h3>Impatto finanziario</h3><div class="dmeta"><span>impatto: <b>' + esc(fmtScore(v.impatto_finanziario)) + ' / 10</b></span>' +
+      (v.alloca_risorse != null ? '<span>alloca risorse: <b>' + (v.alloca_risorse ? "sì" : "no") + "</b></span>" : "") +
+      (v.importo_stimato_eur != null ? '<span>importo stimato: <b>' + esc(Number(v.importo_stimato_eur).toLocaleString("it-IT")) + " €</b></span>" : "") +
+      "</div>" + (v.motivazione_finanziaria ? '<div class="summary-full" style="margin-top:8px">' + esc(v.motivazione_finanziaria) + "</div>" : "") +
+      '<p style="color:var(--muted-fg);font-size:12px;margin-top:8px">Indicatore separato: non entra nello score composito.</p></div>' : "") +
+    '<div class="panel"><h3>' + (e.tipo === "G" ? "Testo dell\u2019ordine del giorno" : "Testo dell\u2019emendamento") + '</h3>' +
     (e.testo ? '<pre class="text-body">' + esc(e.testo) + "</pre>" : '<p style="color:var(--muted-fg);font-size:13.5px">Testo non disponibile.</p>') + "</div>";
   var bars = els.dBody.querySelectorAll(".cbar i");
   var apply = function () { bars.forEach(function (b) { b.style.width = b.dataset.w + "%"; }); };
@@ -691,6 +714,8 @@ function buildChips(container, opts, current, onPick) {
 function syncChipGroups() {
   buildChips(els.cgType, TYPES, state.type, function (v) { state.type = v; syncChipGroups(); resetAndLoad(); });
   buildChips(els.cgScore, SCORES, state.minScore, function (v) { state.minScore = v; syncChipGroups(); resetAndLoad(); });
+  els.cgChamber.hidden = !HAS_CHAMBER; els.lblChamber.hidden = !HAS_CHAMBER;
+  if (HAS_CHAMBER) buildChips(els.cgChamber, CHAMBERS, state.chamber, function (v) { state.chamber = v; syncChipGroups(); resetAndLoad(); });
 }
 function buildSeg() {
   els.seg.querySelectorAll("button").forEach(function (b) { b.remove(); });
@@ -719,6 +744,7 @@ function updateFrow() {
   var qs = sanitizeQuery(state.q);
   if (qs) chips.push({ lbl: "Ricerca: «" + qs + "»", fn: function () { state.q = ""; els.q.value = ""; } });
   if (state.type !== "all") chips.push({ lbl: "Tipo: " + (state.type === "G" ? "O.d.G." : "Emendamenti"), fn: function () { state.type = "all"; } });
+  if (state.chamber !== "all") chips.push({ lbl: "Ramo: " + CHAMBER_LABEL[state.chamber], fn: function () { state.chamber = "all"; } });
   if (state.minScore > 0) chips.push({ lbl: "Score ≥ " + String(state.minScore).replace(".", ","), fn: function () { state.minScore = 0; } });
   if (!chips.length) { els.frow.classList.remove("show"); els.frow.innerHTML = ""; return; }
   els.frow.classList.add("show");
@@ -734,7 +760,7 @@ function updateFrow() {
   clear.type = "button";
   clear.className = "clearbtn";
   clear.textContent = "Cancella tutto";
-  clear.addEventListener("click", function () { state.q = ""; state.type = "all"; state.minScore = 0; els.q.value = ""; syncChipGroups(); resetAndLoad(); });
+  clear.addEventListener("click", function () { state.q = ""; state.type = "all"; state.chamber = "all"; state.minScore = 0; els.q.value = ""; syncChipGroups(); resetAndLoad(); });
   els.frow.appendChild(clear);
 }
 
@@ -744,6 +770,7 @@ function updateHash() {
   var qs = sanitizeQuery(state.q);
   if (qs) p.set("q", state.q);
   if (state.type !== "all") p.set("type", state.type);
+  if (state.chamber !== "all") p.set("ramo", state.chamber);
   if (state.minScore > 0) p.set("min", String(state.minScore));
   if (state.sort !== "score_desc") p.set("sort", state.sort);
   var s = p.toString();
@@ -754,6 +781,7 @@ function readHash() {
   try { p = new URLSearchParams(location.hash.slice(1)); } catch (e) { return; }
   var q = p.get("q"); if (q) { state.q = q; els.q.value = q; }
   var t = p.get("type"); if (t === "E" || t === "G") state.type = t;
+  var r = p.get("ramo"); if (r === "senato" || r === "camera") state.chamber = r;
   var m = parseFloat(p.get("min")); if (!isNaN(m) && m > 0 && m <= 10) state.minScore = m;
   var s = p.get("sort"); if (SORTS.some(function (o) { return o[0] === s; })) state.sort = s;
 }
@@ -823,7 +851,10 @@ var io = new IntersectionObserver(function (entries) {
 }, { rootMargin: "600px 0px" });
 io.observe(els.sentinel);
 
-store.init().then(function () {
+store.init().then(function (flags) {
+  HAS_CHAMBER = !!(flags && flags.chamber);
+  HAS_CORRENTE = !!(flags && flags.corrente);
+  HAS_FINANCE = !!(flags && flags.finance);
   readHash();
   syncChipGroups();
   buildSeg();

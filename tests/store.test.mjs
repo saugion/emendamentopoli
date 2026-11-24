@@ -45,17 +45,21 @@ test("init probes the signatory columns and search builds the list query", async
     if (url.includes("/rest/v1/emendamenti?")) return jsonResponse([]);
     return jsonResponse([{ id: 1 }], { contentRange: "0-29/123" });
   });
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 5);
   assert.ok(calls[0].url.endsWith("/rest/v1/emendamenti?select=firmatari&limit=1"));
   assert.ok(calls[1].url.endsWith("/rest/v1/emendamenti?select=firmatari_uri&limit=1"));
+  assert.ok(calls[2].url.endsWith("/rest/v1/emendamenti?select=camera&limit=1"));
+  assert.ok(calls[3].url.endsWith("/rest/v1/emendamenti?select=corrente&limit=1"));
+  assert.ok(calls[4].url.endsWith("/rest/v1/valutazioni?select=impatto_finanziario&limit=1"));
 
   const r = await store.search({ q: "", type: "all", minScore: 0, sort: "score_desc", offset: 0, limit: 30 });
   assert.deepEqual(r, { items: [{ id: 1 }], total: 123 });
-  const main = calls[2];
+  const main = calls[5];
   assert.ok(main.url.startsWith("https://x.supabase.co/rest/v1/valutazioni?"));
   assert.ok(main.url.includes("order=score_totale.desc.nullslast"));
   assert.ok(main.url.includes("limit=30&offset=0"));
-  assert.ok(main.url.includes("emendamenti!inner(numero,tipo,ddl,data,url_testo,firmatari,firmatari_uri)"));
+  assert.ok(main.url.includes("emendamenti!inner(numero,tipo,ddl,data,url_testo,firmatari,firmatari_uri,camera,esito)"));
+  assert.ok(main.url.includes("emendamenti.corrente=eq.true"));
   assert.equal(main.headers.apikey, "test-key");
   assert.equal(main.headers.Authorization, "Bearer test-key");
   assert.equal(main.headers.Prefer, "count=exact");
@@ -143,7 +147,46 @@ test("stats aggregates the five count queries", async () => {
   });
   const s = await store.stats();
   assert.deepEqual(s, { total: 153, hi: 41, e: 100, g: 12, last: { modello: "mistral-small-latest", ts: "2026-11-24T03:00:00Z" } });
-  assert.equal(calls.filter((c) => c.url.includes("/rest/v1/valutazioni?")).length, 5);
+  assert.equal(calls.filter((c) => c.url.includes("/rest/v1/valutazioni?") && !c.url.includes("impatto_finanziario")).length, 5);
+});
+
+test("search with chamber=camera filters by camera and corrente", async () => {
+  const { store, calls } = await makeStore((url) =>
+    url.includes("/rest/v1/valutazioni?") ? jsonResponse([], { contentRange: "*/0" }) : okInit()
+  );
+  await store.search({ q: "", type: "all", chamber: "camera", minScore: 0, sort: "score_desc", offset: 0, limit: 30 });
+  const url = calls[calls.length - 1].url;
+  assert.ok(url.includes("emendamenti.camera=eq.camera"));
+  assert.ok(url.includes("emendamenti.corrente=eq.true"));
+});
+
+test("detail select includes the financial fields when migration 0006 exists", async () => {
+  const { store, calls } = await makeStore((url) =>
+    url.includes("/rest/v1/valutazioni?id=") ? jsonResponse([{ id: 7 }]) : okInit()
+  );
+  await store.detail(7);
+  const url = calls[calls.length - 1].url;
+  assert.ok(url.includes("impatto_finanziario,alloca_risorse,importo_stimato_eur,motivazione_finanziaria"));
+  assert.ok(url.includes("camera,esito"));
+});
+
+test("without migrations 0004-0006 the queries degrade gracefully", async () => {
+  mockFetch((url) =>
+    url.includes("select=camera") || url.includes("select=corrente") || url.includes("select=impatto_finanziario")
+      ? jsonResponse("nope", { status: 400 })
+      : okInit()
+  );
+  const store = createStore(CFG);
+  const flags = await store.init();
+  assert.deepEqual(flags, { signatories: true, signatoryUris: true, chamber: false, corrente: false, finance: false });
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    return jsonResponse([], { contentRange: "*/0" });
+  };
+  await store.search({ q: "", type: "all", chamber: "camera", minScore: 0, sort: "score_desc", offset: 0, limit: 30 });
+  assert.ok(!calls[0].includes("corrente=eq.true"));
+  assert.ok(!calls[0].includes("camera=eq.camera"));
 });
 
 test("init without the signatory columns omits them from the select", async () => {
