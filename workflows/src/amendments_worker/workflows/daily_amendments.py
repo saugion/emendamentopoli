@@ -26,7 +26,7 @@ UA = "curl/8.5.0"  # CloudFront only accepts curl-like user-agents on these path
 TIMEZONE = "Europe/Rome"
 ENRICH_CONCURRENCY = 8
 EVALUATION_CONCURRENCY = 10
-SPARQL_PAGE = 1000
+SPARQL_PAGE = 100
 
 
 class DailyAmendmentsInput(BaseModel):
@@ -152,6 +152,21 @@ async def yesterday() -> str:
     return (datetime.now(ZoneInfo(TIMEZONE)) - delta(days=1)).date().isoformat()
 
 
+@workflows.activity(start_to_close_timeout=timedelta(seconds=60), retry_policy_max_attempts=3)
+async def saved_id_date_map(legislature: int) -> dict[str, str | None]:
+    import os
+
+    import httpx
+
+    base = os.environ["SUPABASE_URL"].rstrip("/")
+    key = os.environ["SUPABASE_KEY"]
+    url = f"{base}/rest/v1/emendamenti?select=id,data&legislature=eq.{legislature}&limit=100000"
+    async with httpx.AsyncClient(timeout=45.0) as client:
+        resp = await client.get(url, headers={"apikey": key, "Authorization": f"Bearer {key}"})
+        resp.raise_for_status()
+        return {r["id"]: r["data"] for r in resp.json()}
+
+
 @workflows.activity(start_to_close_timeout=timedelta(seconds=120), retry_policy_max_attempts=3)
 async def fetch_metadata_page(legislature: int, page_limit: int, offset: int) -> list[Amendment]:
     import httpx
@@ -269,6 +284,7 @@ class DailyAmendmentsWorkflow:
             async with enrich_sem:
                 return await enrich_amendment(m)
 
+        already_saved = await saved_id_date_map(input.legislature)
         metadata: list[Amendment] = []
         analyzed: list[Amendment] = []
         errors: list[str] = []
@@ -281,18 +297,20 @@ class DailyAmendmentsWorkflow:
                 break
             metadata.extend(page)
             offset += len(page)
+            to_enrich = [m for m in page if m.id not in already_saved]
             results = await asyncio.gather(
-                *[_enrich(m) for m in page],
+                *[_enrich(m) for m in to_enrich],
                 return_exceptions=True,
             )
             errors.extend(
                 f"{m.id}: {type(r).__name__}: {r}"
-                for m, r in zip(page, results)
+                for m, r in zip(to_enrich, results)
                 if isinstance(r, BaseException)
             )
             page_ok = [r for r in results if not isinstance(r, BaseException)]
             analyzed.extend(page_ok)
             dates = [a.date for a in page_ok if a.date]
+            dates += [already_saved[m.id] for m in page if m.id in already_saved and already_saved[m.id]]
             if dates and min(dates) < start_date:
                 break
         in_period = [a for a in analyzed if a.date and start_date <= a.date <= end_date]

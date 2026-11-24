@@ -18,10 +18,10 @@ on:
         type: string
         default: "19"
       limit:
-        description: "Recent amendments to scan at most (must cover the whole period; max 20000)"
+        description: "Cap of amendments to scan (SPARQL batches of 100; must cover the whole period, max 20000)"
         required: false
         type: string
-        default: "20000"
+        default: "5000"
 
 permissions: {}
 
