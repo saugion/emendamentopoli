@@ -85,21 +85,6 @@ def _evaluation() -> Evaluation:
     )
 
 
-async def test_saved_amendments_map_url_headers_and_mapping(transport):
-    calls, responses = transport
-    responses.append(FakeResp([{"id": "x", "data": "2026-01-10", "firmatari": "Rossi"}]))
-    result = await supabase.saved_amendments_map(19)
-    method, url, headers, _ = calls[0]
-    assert method == "GET"
-    assert url == (
-        "https://example.supabase.co/rest/v1/emendamenti"
-        "?select=id,data,firmatari&legislatura=eq.19&limit=100000"
-    )
-    assert headers["apikey"] == "test-key"
-    assert headers["Authorization"] == "Bearer test-key"
-    assert result == {"x": {"data": "2026-01-10", "firmatari": "Rossi"}}
-
-
 async def test_upsert_amendments_chunks_with_prefer(transport, monkeypatch):
     calls, responses = transport
     monkeypatch.setattr(supabase, "SAVE_CHUNK", 2)
@@ -167,7 +152,20 @@ async def test_get_retries_on_retryable_status(transport, monkeypatch):
         return None
 
     monkeypatch.setattr(asyncio, "sleep", _nosleep)
-    responses.extend([FakeResp(status=403), FakeResp([{"id": "x", "data": None, "firmatari": None}])])
-    result = await supabase.saved_amendments_map(19)
+    row = {
+        "id": "x",
+        "legislature": 19,
+        "number": "1.1",
+        "type": "E",
+        "committee_seat": False,
+        "act_uri": "http://dati.senato.it/osr/oggetto/1",
+        "bill": "Ddl 391",
+        "text_url": "u",
+        "text_xml_url": "ux",
+        "date": "2026-01-10",
+        "text": "t",
+    }
+    responses.extend([FakeResp(status=403), FakeResp([row])])
+    result = await supabase.amendments_without_evaluation(500)
     assert len(calls) == 2
-    assert result == {"x": {"data": None, "firmatari": None}}
+    assert result[0].id == "x"

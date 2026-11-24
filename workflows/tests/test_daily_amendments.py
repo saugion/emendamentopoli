@@ -323,3 +323,23 @@ async def test_workflow_run_smoke(monkeypatch) -> None:
     assert d["evaluated"] == 1
     assert d["ids"] == ["http://dati.senato.it/emendamento/1"]
     assert len(d["errors"]) == 1
+
+
+async def test_saved_map_reads_all_pages(monkeypatch) -> None:
+    # PostgREST caps responses at max-rows=1000: the saved-amendments map must paginate
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_KEY", "test-key")
+    rows = [
+        {"id": f"r{i:05d}", "data": "2026-01-10", "firmatari": "Rossi"} for i in range(2345)
+    ]
+
+    async def _select_all(client, table, select, filters=None, page_size=1000, key="id"):
+        assert table == "emendamenti"
+        assert select == "id,data,firmatari"
+        assert filters == {"legislatura": "eq.19"}
+        return rows
+
+    monkeypatch.setattr(mod, "select_all", _select_all)
+    result = await mod.saved_amendments_map(19)
+    assert len(result) == 2345
+    assert result["r00000"] == {"data": "2026-01-10", "firmatari": "Rossi"}

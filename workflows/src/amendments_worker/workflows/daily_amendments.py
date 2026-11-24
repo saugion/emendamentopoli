@@ -22,6 +22,7 @@ from ..sources.senato import (  # re-exported: tests import query_recent_metadat
     query_recent_metadata,
     sparql_url,
 )
+from ..sources.supabase import select_all, supabase_base_and_key, supabase_headers
 from . import akn
 from . import supabase
 from .ingest import IngestDeps, ingest_period
@@ -80,9 +81,18 @@ async def yesterday() -> str:
     return (datetime.now(ZoneInfo(TIMEZONE)) - delta(days=1)).date().isoformat()
 
 
-@workflows.activity(start_to_close_timeout=timedelta(seconds=60), retry_policy_max_attempts=3)
+@workflows.activity(start_to_close_timeout=timedelta(seconds=300), retry_policy_max_attempts=3)
 async def saved_amendments_map(legislature: int) -> dict[str, dict[str, str | None]]:
-    return await supabase.saved_amendments_map(legislature)
+    # keyset-paginated read: PostgREST caps responses at max-rows=1000, a single
+    # limit=100000 request silently truncates and re-saved amendments would be re-evaluated
+    import httpx
+
+    base, key = supabase_base_and_key()
+    async with httpx.AsyncClient(timeout=45.0, headers=supabase_headers(key)) as client:
+        rows = await select_all(
+            client, "emendamenti", "id,data,firmatari", {"legislatura": f"eq.{legislature}"}
+        )
+    return {r["id"]: {"data": r["data"], "firmatari": r["firmatari"]} for r in rows}
 
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=300), retry_policy_max_attempts=3)
