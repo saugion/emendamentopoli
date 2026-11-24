@@ -33,6 +33,10 @@ async def _saved_map_empty(legislature: int) -> dict:
     return {}
 
 
+def _saved_row(data: str | None, firmatari: str | None = "Rossi") -> dict:
+    return {"data": data, "firmatari": firmatari}
+
+
 async def _enrich(eme: mod.Amendment) -> mod.Amendment:
     if eme.id.endswith("/2"):
         raise RuntimeError("AKN unreachable")
@@ -66,7 +70,7 @@ async def _save_evaluations(evaluations: list[Evaluation]) -> int:
 def _patch(monkeypatch) -> None:
     monkeypatch.setattr(mod, "yesterday", _yesterday)
     monkeypatch.setattr(mod, "fetch_metadata_page", _page)
-    monkeypatch.setattr(mod, "saved_id_date_map", _saved_map_empty)
+    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map_empty)
     monkeypatch.setattr(mod, "enrich_amendment", _enrich)
     monkeypatch.setattr(mod, "save_amendments", _save)
     monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
@@ -126,7 +130,7 @@ async def test_multi_day_period(monkeypatch) -> None:
 
     monkeypatch.setattr(mod, "yesterday", _yesterday)
     monkeypatch.setattr(mod, "fetch_metadata_page", _page)
-    monkeypatch.setattr(mod, "saved_id_date_map", _saved_map_empty)
+    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map_empty)
     monkeypatch.setattr(mod, "enrich_amendment", _enrich_range)
     monkeypatch.setattr(mod, "save_amendments", _save)
     monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
@@ -172,7 +176,7 @@ async def test_pagination_with_early_stop(monkeypatch) -> None:
 
     monkeypatch.setattr(mod, "yesterday", _yesterday)
     monkeypatch.setattr(mod, "fetch_metadata_page", _pages)
-    monkeypatch.setattr(mod, "saved_id_date_map", _saved_map_empty)
+    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map_empty)
     monkeypatch.setattr(mod, "enrich_amendment", _enrich_pages)
     monkeypatch.setattr(mod, "save_amendments", _save)
     monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
@@ -194,7 +198,7 @@ async def test_skips_already_saved(monkeypatch) -> None:
     seen: list[str] = []
 
     async def _saved_map(legislature: int) -> dict:
-        return {"http://dati.senato.it/emendamento/1": DATE}
+        return {"http://dati.senato.it/emendamento/1": _saved_row(DATE)}
 
     async def _enrich_skip(eme: mod.Amendment) -> mod.Amendment:
         seen.append(eme.id)
@@ -204,7 +208,7 @@ async def test_skips_already_saved(monkeypatch) -> None:
         return eme
 
     monkeypatch.setattr(mod, "yesterday", _yesterday)
-    monkeypatch.setattr(mod, "saved_id_date_map", _saved_map)
+    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map)
     monkeypatch.setattr(mod, "fetch_metadata_page", _page)
     monkeypatch.setattr(mod, "enrich_amendment", _enrich_skip)
     monkeypatch.setattr(mod, "save_amendments", _save)
@@ -223,6 +227,47 @@ async def test_skips_already_saved(monkeypatch) -> None:
     assert d["analyzed"] == 2
     assert d["found"] == 0
     assert d["saved"] == 0
+
+
+async def test_backfills_missing_signatories(monkeypatch) -> None:
+    SAVED.clear()
+    EVALUATED.clear()
+    seen: list[str] = []
+
+    async def _saved_map(legislature: int) -> dict:
+        # already saved, but without signatories (ingested before the feature)
+        return {"http://dati.senato.it/emendamento/1": _saved_row(DATE, firmatari=None)}
+
+    async def _enrich_backfill(eme: mod.Amendment) -> mod.Amendment:
+        seen.append(eme.id)
+        eme.date = DATE
+        eme.bill = "Ddl 391"
+        eme.text = "text"
+        eme.signatories = ["Rossi"]
+        eme.signatory_uris = ["https://www.senato.it/leg/19/BGT/Schede/Attsen/00000407.htm"]
+        return eme
+
+    monkeypatch.setattr(mod, "yesterday", _yesterday)
+    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map)
+    monkeypatch.setattr(mod, "fetch_metadata_page", _page)
+    monkeypatch.setattr(mod, "enrich_amendment", _enrich_backfill)
+    monkeypatch.setattr(mod, "save_amendments", _save)
+    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
+    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
+    result = await workflows.execute_workflow(
+        mod.DailyAmendmentsWorkflow,
+        params=mod.DailyAmendmentsInput(date=DATE, legislature=19, limit=10),
+    )
+    d = result if isinstance(result, dict) else result.model_dump()
+    # eme/1 is re-enriched (missing firmatari) and saved again, but not re-evaluated
+    assert "http://dati.senato.it/emendamento/1" in seen
+    assert d["saved"] == 3
+    assert d["evaluated"] == 2
+    assert SAVED[0].signatories == ["Rossi"]
+    assert [v.amendment_id for v in EVALUATED] == [
+        "http://dati.senato.it/emendamento/2",
+        "http://dati.senato.it/emendamento/3",
+    ]
 
 
 def test_inconsistent_period() -> None:

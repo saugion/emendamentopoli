@@ -1,6 +1,6 @@
 """Shared workflow models."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 SAVE_CHUNK = 500
 
@@ -17,3 +17,5 @@ class Amendment(BaseModel):
     date: str | None = None  # submission date (YYYY-MM-DD), from the AKN text
     bill: str | None = None  # e.g. "Ddl 391"
     text: str | None = None  # plain-text body
+    signatories: list[str] = Field(default_factory=list)  # senators' surnames (first = proposer)
+    signatory_uris: list[str] = Field(default_factory=list)  # senato.it profile URLs, aligned with signatories ("" if unknown)
