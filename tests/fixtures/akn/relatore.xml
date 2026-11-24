@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<an:akomaNtoso>
+  <an:bill>
+    <an:meta><an:identification>
+      <an:FRBRdate date="2026-02-01" name="presentazione" />
+    </an:identification></an:meta>
+    <an:preface>
+      <an:activeRef showAs="Ddl 500">http://dati.senato.it/osr/oggetto/500</an:activeRef>
+      <an:docProponent refersTo="#gov">Il Relatore</an:docProponent>
+      <an:docProponent>Senza riferimento</an:docProponent>
+    </an:preface>
+    <an:amendmentBody><an:mod><an:quotedText>Testo semplice.</an:quotedText></an:mod></an:amendmentBody>
+    <an:references>
+      <an:TLCPerson id="gov" href="http://dati.senato.it/senatore/0" />
+    </an:references>
+  </an:bill>
+</an:akomaNtoso>

@@ -4,6 +4,7 @@
   "description": "AI evaluation of the public interest of parliamentary amendments (Senate + Chamber of Deputies)",
   "type": "module",
   "scripts": {
-    "demo": "node --experimental-strip-types src/main.ts"
+    "demo": "node --experimental-strip-types src/main.ts",
+    "test": "node --experimental-strip-types --test \"tests/**/*.test.ts\" \"tests/**/*.test.mjs\""
   }
 }

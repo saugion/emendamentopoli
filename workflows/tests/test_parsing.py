@@ -1,12 +1,11 @@
-from amendments_worker.workflows.daily_amendments import (
-    Amendment,
+from amendments_worker.workflows.akn import (
     extract_date,
     extract_bill,
     extract_text,
     extract_signatories,
     senator_profile,
-    query_recent_metadata,
 )
+from amendments_worker.workflows.daily_amendments import Amendment, query_recent_metadata
 from amendments_worker.workflows.supabase import amendment_row
 
 XML_AKN = """<?xml version="1.0" encoding="iso-8859-1"?>

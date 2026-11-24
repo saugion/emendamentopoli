@@ -59,10 +59,12 @@ prototipo: da raffinare prima di un uso reale in produzione.
 ## File
 
 - `src/types.ts` - tipi + rubrica e pesi
-- `src/senate.ts` - client SPARQL + parser Akoma Ntoso
+- `src/senate.ts` - client SPARQL + fetch dei testi Akoma Ntoso
+- `src/akn.ts` - parser Akoma Ntoso puro (`parseAkn`), senza fetch
 - `src/evaluate.ts` - valutazione LLM (con fallback euristico)
 - `src/db.ts` - persistenza Supabase (API REST, zero dipendenze)
 - `src/main.ts` - CLI demo
+- `tests/` - test Node (`npm test`, zero dipendenze): `akn.test.ts` guida `src/akn.ts` sulle fixture condivise `tests/fixtures/akn/*.xml` + `*.expected.json`, lette anche dalla suite Python (`workflows/tests/test_akn_fixtures.py`)
 - `supabase/migrations/0001_schema.sql` - schema del database
 - `supabase/migrations/0002_firmatari.sql` - colonna `firmatari` + indice trigram (pg_trgm)
 - `supabase/migrations/0003_firmatari_uri.sql` - colonna `firmatari_uri` (link al profilo senato.it dei firmatari)
