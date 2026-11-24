@@ -7,7 +7,7 @@ gli emendamenti del giorno prima e li salva su Supabase.
   - input: `data` (inizio periodo, YYYY-MM-DD, default ieri in `Europe/Rome`), `data_fine` (fine periodo inclusivo, default = `data`), `legislatura` (default 19), `limite` (default 1000, max 20000)
   - step: SPARQL su `dati.senato.it` (open data, CC BY 3.0) sugli emendamenti piu' recenti → testi Akoma Ntoso → filtro per data di presentazione nel periodo `data..data_fine` → upsert su `rest/v1/emendamenti` (`on_conflict=id`, a chunk da 500)
   - valuta anche con Mistral (via service account del deployment, nessuna API key) e scrive `valutazioni` + `punteggi`
-  - backfill multi-giorno: `data_fine` diverso da `data` e `limite` alto a sufficienza a coprire gli emendamenti del periodo (es. 20000); l'arricchimento procede con concorrenza limitata (25) per non farsi bloccare da CloudFront (403)
+  - backfill multi-giorno: `data_fine` diverso da `data` e `limite` alto a sufficienza a coprire gli emendamenti del periodo (es. 20000); la query SPARQL e' paginata (LIMIT 1000 + OFFSET, early stop a copertura del periodo) perche' l'endpoint risponde 500 con LIMIT molto alti; l'arricchimento procede con concorrenza limitata (25) per non farsi bloccare da CloudFront (403)
 - **Workflow**: `valuta-emendamenti-mancanti` (backfill: emendamenti in Supabase senza valutazione → valutazione LLM)
   - input: `limite` (default 500, max 5000)
 - **Schedule**: ogni notte alle 03:00 `Europe/Rome` (cron `0 3 * * *`), creato via API/Studio sullo deployment `emendamentopoli`

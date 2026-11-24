@@ -25,8 +25,8 @@ async def _data_ieri() -> str:
     return DATA
 
 
-async def _scarica(legislatura: int, limite: int) -> list[mod.Emendamento]:
-    return [_eme(1), _eme(2), _eme(3)]
+async def _pagina(legislatura: int, limite_pagina: int, offset: int) -> list[mod.Emendamento]:
+    return [] if offset else [_eme(1), _eme(2), _eme(3)]
 
 
 async def _arricchisci(eme: mod.Emendamento) -> mod.Emendamento:
@@ -61,7 +61,7 @@ async def _salva_valutazioni(valutazioni: list[Valutazione]) -> int:
 
 def _patch(monkeypatch) -> None:
     monkeypatch.setattr(mod, "data_ieri", _data_ieri)
-    monkeypatch.setattr(mod, "scarica_metadati_recenti", _scarica)
+    monkeypatch.setattr(mod, "scarica_pagina_metadati", _pagina)
     monkeypatch.setattr(mod, "arricchisci_emendamento", _arricchisci)
     monkeypatch.setattr(mod, "salva_emendamenti", _salva)
     monkeypatch.setattr(mod, "valuta_emendamento", _valuta)
@@ -120,7 +120,7 @@ async def test_periodo_piu_giorni(monkeypatch) -> None:
         return eme
 
     monkeypatch.setattr(mod, "data_ieri", _data_ieri)
-    monkeypatch.setattr(mod, "scarica_metadati_recenti", _scarica)
+    monkeypatch.setattr(mod, "scarica_pagina_metadati", _pagina)
     monkeypatch.setattr(mod, "arricchisci_emendamento", _arricchisci_range)
     monkeypatch.setattr(mod, "salva_emendamenti", _salva)
     monkeypatch.setattr(mod, "valuta_emendamento", _valuta)
@@ -143,6 +143,42 @@ async def test_periodo_piu_giorni(monkeypatch) -> None:
     ]
     assert d["errori"] == []
     assert d["errori_valutazione"] == []
+
+
+async def test_paginazione_con_early_stop(monkeypatch) -> None:
+    SALVATI.clear()
+    VALUTATI.clear()
+    pagine = [
+        [_eme(1), _eme(2)],
+        [_eme(3), _eme(4)],
+        [_eme(5)],
+    ]
+
+    async def _pagine(legislatura: int, limite_pagina: int, offset: int) -> list[mod.Emendamento]:
+        return pagine.pop(0) if pagine else []
+
+    async def _arricchisci_pagine(eme: mod.Emendamento) -> mod.Emendamento:
+        n = int(eme.id.rsplit("/", 1)[-1])
+        eme.data = {1: "2026-01-12", 2: "2026-01-11", 3: DATA, 4: "2026-01-09", 5: "2026-01-08"}[n]
+        eme.ddl = "Ddl 391"
+        eme.testo = "testo"
+        return eme
+
+    monkeypatch.setattr(mod, "data_ieri", _data_ieri)
+    monkeypatch.setattr(mod, "scarica_pagina_metadati", _pagine)
+    monkeypatch.setattr(mod, "arricchisci_emendamento", _arricchisci_pagine)
+    monkeypatch.setattr(mod, "salva_emendamenti", _salva)
+    monkeypatch.setattr(mod, "valuta_emendamento", _valuta)
+    monkeypatch.setattr(mod, "salva_valutazioni", _salva_valutazioni)
+    result = await workflows.execute_workflow(
+        mod.EmendamentiGiornalieriWorkflow,
+        params=mod.EmendamentiGiornalieriInput(data=DATA, legislatura=19, limite=10),
+    )
+    d = result if isinstance(result, dict) else result.model_dump()
+    assert d["metadati_scaricati"] == 4
+    assert d["analizzati"] == 4
+    assert d["trovati"] == 1
+    assert d["ids"] == ["http://dati.senato.it/emendamento/3"]
 
 
 def test_periodo_incoerente() -> None:
