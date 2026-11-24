@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<an:akomaNtoso>
+  <an:bill>
+    <an:meta><an:identification>
+      <an:FRBRdate date="2026-01-10" name="presentazione" />
+    </an:identification></an:meta>
+    <an:preface>
+      <an:activeRef showAs="Ddl 391">http://dati.senato.it/osr/oggetto/391</an:activeRef>
+      <an:docProponent refersTo="#p1"><an:person>ROSSI Mario</an:person></an:docProponent>
+      <an:docProponent refersTo="#p2">BIANCHI Anna &amp; VERDI</an:docProponent>
+      <an:docProponent refersTo="#p1">ROSSI Mario</an:docProponent>
+    </an:preface>
+    <an:amendmentBody>
+      <an:mod><an:quotedText>Si sostituisce l&#x2019;articolo 3 &amp; si aggiunge il comma 2.</an:quotedText></an:mod>
+      <an:doc>Nota: testo non rilevante</an:doc>
+    </an:amendmentBody>
+    <an:references>
+      <an:TLCPerson id="p1" href="http://dati.senato.it/senatore/407" />
+      <an:TLCPerson id="p2" href="https://dati.senato.it/senatore/29521" />
+    </an:references>
+  </an:bill>
+</an:akomaNtoso>
