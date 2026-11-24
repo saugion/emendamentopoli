@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 import mistralai.workflows as workflows
 
-from .modelli import Emendamento
+from .modelli import CHUNK_SALVATAGGIO, Emendamento
 
 MODELLO = "mistral-small-latest"
 RUBRICA = {"trasparenza": 0.3, "salute": 0.25, "ambiente": 0.25, "concretezza": 0.2}
@@ -130,22 +130,26 @@ async def salva_valutazioni(valutazioni: list[Valutazione]) -> int:
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
+    totale = 0
     async with httpx.AsyncClient(timeout=150.0) as client:
-        resp = await client.post(
-            f"{base}/rest/v1/valutazioni",
-            headers={**headers, "Prefer": "return=representation"},
-            json=[riga_valutazione(v) for v in valutazioni],
-        )
-        resp.raise_for_status()
-        inserted = resp.json()
-        punteggi_rows = [
-            riga
-            for v, row in zip(valutazioni, inserted)
-            for riga in righe_punteggi(row["id"], v)
-        ]
-        if punteggi_rows:
-            resp2 = await client.post(
-                f"{base}/rest/v1/punteggi", headers=headers, json=punteggi_rows
+        for i in range(0, len(valutazioni), CHUNK_SALVATAGGIO):
+            chunk = valutazioni[i : i + CHUNK_SALVATAGGIO]
+            resp = await client.post(
+                f"{base}/rest/v1/valutazioni",
+                headers={**headers, "Prefer": "return=representation"},
+                json=[riga_valutazione(v) for v in chunk],
             )
-            resp2.raise_for_status()
-    return len(valutazioni)
+            resp.raise_for_status()
+            inserted = resp.json()
+            punteggi_rows = [
+                riga
+                for v, row in zip(chunk, inserted)
+                for riga in righe_punteggi(row["id"], v)
+            ]
+            if punteggi_rows:
+                resp2 = await client.post(
+                    f"{base}/rest/v1/punteggi", headers=headers, json=punteggi_rows
+                )
+                resp2.raise_for_status()
+            totale += len(chunk)
+    return totale

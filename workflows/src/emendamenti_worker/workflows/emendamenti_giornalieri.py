@@ -1,10 +1,11 @@
-"""Workflow notturno: scarica gli emendamenti del giorno prima e li salva su Supabase.
+"""Workflow notturno: scarica gli emendamenti del giorno prima (o di un periodo) e li salva su Supabase.
 
 Sorgente: endpoint SPARQL di dati.senato.it (Open Data, licenza CC BY 3.0,
 citazione "Senato della Repubblica - dati.senato.it"). La classe osr:Emendamento
 non espone la data di presentazione, quindi si prendono gli emendamenti piu' recenti
 (id numerico decrescente, che segue l'ordine di presentazione) e la data viene letta
-dal testo Akoma Ntoso di ciascuno.
+dal testo Akoma Ntoso di ciascuno. Con data_fine si scarica un intero intervallo
+(es. backfill di un mese): il limite deve coprire tutti gli emendamenti del periodo.
 """
 
 import asyncio
@@ -12,23 +13,30 @@ import re
 from datetime import timedelta
 from urllib.parse import quote
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 import mistralai.workflows as workflows
 
-from .modelli import Emendamento
-from .valutazione import salva_valutazioni, valuta_emendamento
+from .modelli import CHUNK_SALVATAGGIO, Emendamento
+from .valutazione import Valutazione, salva_valutazioni, valuta_emendamento
 
 SPARQL_ENDPOINT = "https://dati.senato.it/sparql"
 UA = "curl/8.5.0"  # CloudFront accetta solo user-agent curl-like su questi path
 FUSO_ORARIO = "Europe/Rome"
+CONCORRENZA_ARRICCHIMENTO = 25
+CONCORRENZA_VALUTAZIONE = 10
 
 
 class EmendamentiGiornalieriInput(BaseModel):
     data: str | None = Field(
         default=None,
         pattern=r"^\d{4}-\d{2}-\d{2}$",
-        description="Giorno da scaricare (YYYY-MM-DD); default: ieri, fuso Europe/Rome",
+        description="Inizio del periodo da scaricare (YYYY-MM-DD); default: ieri, fuso Europe/Rome",
+    )
+    data_fine: str | None = Field(
+        default=None,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="Fine del periodo (YYYY-MM-DD, inclusivo); default: stesso giorno di data",
     )
     legislatura: int = 19
     limite: int = Field(
@@ -38,9 +46,16 @@ class EmendamentiGiornalieriInput(BaseModel):
         description="Quanti emendamenti recenti considerare al massimo",
     )
 
+    @model_validator(mode="after")
+    def _periodo_coerente(self) -> "EmendamentiGiornalieriInput":
+        if self.data and self.data_fine and self.data_fine < self.data:
+            raise ValueError("data_fine deve essere maggiore o uguale a data")
+        return self
+
 
 class EmendamentiGiornalieriOutput(BaseModel):
     data: str
+    data_fine: str
     legislatura: int
     metadati_scaricati: int
     analizzati: int
@@ -197,38 +212,51 @@ async def salva_emendamenti(emendamenti: list[Emendamento]) -> int:
     base = os.environ["SUPABASE_URL"].rstrip("/")
     key = os.environ["SUPABASE_KEY"]
     righe = [riga_supabase(e) for e in emendamenti]
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates",
+    }
+    totale = 0
     async with httpx.AsyncClient(timeout=150.0) as client:
-        resp = await client.post(
-            f"{base}/rest/v1/emendamenti?on_conflict=id",
-            headers={
-                "apikey": key,
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-                "Prefer": "resolution=merge-duplicates",
-            },
-            json=righe,
-        )
-        resp.raise_for_status()
-    return len(righe)
+        for i in range(0, len(righe), CHUNK_SALVATAGGIO):
+            chunk = righe[i : i + CHUNK_SALVATAGGIO]
+            resp = await client.post(
+                f"{base}/rest/v1/emendamenti?on_conflict=id",
+                headers=headers,
+                json=chunk,
+            )
+            resp.raise_for_status()
+            totale += len(chunk)
+    return totale
 
 
 @workflows.workflow.define(
     name="emendamenti-giornalieri",
     workflow_display_name="Emendamenti del giorno prima (Senato)",
     workflow_description=(
-        "Scarica da dati.senato.it (SPARQL, CC BY 3.0) gli emendamenti presentati nel giorno "
-        "indicato (default: ieri, fuso Europe/Rome), recupera i testi Akoma Ntoso, salva "
-        "gli emendamenti su Supabase (upsert per id) e li valuta con Mistral (valutazioni + punteggi)."
+        "Scarica da dati.senato.it (SPARQL, CC BY 3.0) gli emendamenti presentati nel periodo "
+        "indicato (data..data_fine, default: solo ieri, fuso Europe/Rome; utile per backfill "
+        "multi-giorno), recupera i testi Akoma Ntoso, salva gli emendamenti su Supabase "
+        "(upsert per id) e li valuta con Mistral (valutazioni + punteggi)."
     ),
     execution_timeout=timedelta(hours=2),
 )
 class EmendamentiGiornalieriWorkflow:
     @workflows.workflow.entrypoint
     async def run(self, input: EmendamentiGiornalieriInput) -> EmendamentiGiornalieriOutput:
-        data = input.data if input.data else await data_ieri()
+        data_inizio = input.data if input.data else await data_ieri()
+        data_fine = input.data_fine if input.data_fine else data_inizio
         metadati = await scarica_metadati_recenti(input.legislatura, input.limite)
+        sem_arricchimento = asyncio.Semaphore(CONCORRENZA_ARRICCHIMENTO)
+
+        async def _arricchisci(m: Emendamento) -> Emendamento:
+            async with sem_arricchimento:
+                return await arricchisci_emendamento(m)
+
         risultati = await asyncio.gather(
-            *[arricchisci_emendamento(m) for m in metadati],
+            *[_arricchisci(m) for m in metadati],
             return_exceptions=True,
         )
         errori = [
@@ -237,28 +265,35 @@ class EmendamentiGiornalieriWorkflow:
             if isinstance(r, BaseException)
         ]
         analizzati = [r for r in risultati if not isinstance(r, BaseException)]
-        del_giorno = [e for e in analizzati if e.data == data]
-        salvati = await salva_emendamenti(del_giorno) if del_giorno else 0
+        nel_periodo = [e for e in analizzati if e.data and data_inizio <= e.data <= data_fine]
+        salvati = await salva_emendamenti(nel_periodo) if nel_periodo else 0
+        sem_valutazione = asyncio.Semaphore(CONCORRENZA_VALUTAZIONE)
+
+        async def _valuta(e: Emendamento) -> Valutazione:
+            async with sem_valutazione:
+                return await valuta_emendamento(e)
+
         ris_val = await asyncio.gather(
-            *[valuta_emendamento(e) for e in del_giorno],
+            *[_valuta(e) for e in nel_periodo],
             return_exceptions=True,
         )
         errori_valutazione = [
             f"{e.id}: {type(r).__name__}: {r}"
-            for e, r in zip(del_giorno, ris_val)
+            for e, r in zip(nel_periodo, ris_val)
             if isinstance(r, BaseException)
         ]
         valutazioni = [r for r in ris_val if not isinstance(r, BaseException)]
         valutati = await salva_valutazioni(valutazioni) if valutazioni else 0
         return EmendamentiGiornalieriOutput(
-            data=data,
+            data=data_inizio,
+            data_fine=data_fine,
             legislatura=input.legislatura,
             metadati_scaricati=len(metadati),
             analizzati=len(analizzati),
-            trovati=len(del_giorno),
+            trovati=len(nel_periodo),
             salvati=salvati,
             valutati=valutati,
-            ids=[e.id for e in del_giorno],
+            ids=[e.id for e in nel_periodo],
             errori=errori,
             errori_valutazione=errori_valutazione,
         )
