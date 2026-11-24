@@ -56,6 +56,7 @@ prototipo: da raffinare prima di un uso reale in produzione.
 - `src/db.ts` - persistenza Supabase (API REST, zero dipendenze)
 - `src/main.ts` - CLI demo
 - `supabase/migrations/0001_schema.sql` - schema del database
+- `index.html` - web app statica zero-dipendenze: esplora migliaia di emendamenti con ricerca full-text (testo/ddl/numero/riepilogo), filtri per tipo e score, ordinamento, scroll infinito e pannello dettaglio con testo completo; tema chiaro/scuro; stato in URL (hash)
 
 ## Roadmap
 
