@@ -101,13 +101,17 @@ async def test_upsert_amendments_chunks_with_prefer(transport, monkeypatch):
 
 async def test_insert_evaluations_posts_valutazioni_then_punteggi(transport):
     calls, responses = transport
-    responses.extend([FakeResp([{"id": 42}]), FakeResp(None)])
+    responses.extend(
+        [FakeResp([{"id": 42, "emendamento_id": "http://dati.senato.it/emendamento/1"}]), FakeResp(None)]
+    )
     total = await supabase.insert_evaluations([_evaluation()])
     assert total == 1
     val_call, score_call = calls
-    assert val_call[1].endswith("/rest/v1/valutazioni")
-    assert val_call[2]["Prefer"] == "return=representation"
+    assert "/rest/v1/valutazioni" in val_call[1]
+    assert "on_conflict=emendamento_id,rubrica_versione" in val_call[1]
+    assert val_call[2]["Prefer"] == "resolution=ignore-duplicates,return=representation"
     assert val_call[3][0]["emendamento_id"] == "http://dati.senato.it/emendamento/1"
+    assert val_call[3][0]["rubrica_versione"] == 1
     assert score_call[1].endswith("/rest/v1/punteggi")
     assert "Prefer" not in score_call[2]
     assert score_call[3] == [

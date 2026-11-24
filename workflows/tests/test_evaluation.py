@@ -88,3 +88,45 @@ def test_supabase_rows():
             "motivazione": "x",
         }
     ]
+
+
+async def test_save_evaluations_maps_scores_by_amendment_id(monkeypatch):
+    import json
+
+    import httpx
+    import respx
+
+    from amendments_worker.workflows import supabase as supabase_mod
+
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_KEY", "test-key")
+
+    def _eval(amendment_id: str, criterion: str) -> Evaluation:
+        return Evaluation(
+            amendment_id=amendment_id,
+            scores=[Score(criterion=criterion, score=5, rationale="r")],
+            total_score=5.0,
+            summary="s",
+            model="m",
+            ts="2026-01-10T00:00:00+00:00",
+        )
+
+    chunk = [_eval("A", "salute"), _eval("B", "ambiente")]
+    with respx.mock(assert_all_called=False) as router:
+        val_route = router.post("https://example.supabase.co/rest/v1/valutazioni").mock(
+            return_value=httpx.Response(201, json=[{"id": 7, "emendamento_id": "B"}])
+        )
+        score_route = router.post("https://example.supabase.co/rest/v1/punteggi").mock(
+            return_value=httpx.Response(201, json=[])
+        )
+        total = await supabase_mod.insert_evaluations(chunk)
+    assert total == 1  # A was ignored as a duplicate
+    assert "on_conflict=emendamento_id,rubrica_versione" in str(val_route.calls[0].request.url)
+    assert (
+        val_route.calls[0].request.headers["Prefer"]
+        == "resolution=ignore-duplicates,return=representation"
+    )
+    score_body = json.loads(score_route.calls[0].request.content)
+    assert score_body == [
+        {"valutazione_id": 7, "criterio": "ambiente", "punteggio": 5, "motivazione": "r"}
+    ]
