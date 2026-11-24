@@ -7,11 +7,14 @@ the run identity: in the managed deployment it is the service account
 
 import math
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
+import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 import mistralai.workflows as workflows
 
+from ..sources import supabase as source_supabase
 from ..sources.common import testo_hash
 from . import supabase
 from .models import Amendment
@@ -135,8 +138,8 @@ def build_evaluation(eme: Amendment, parsed: EvaluationJSON) -> Evaluation:
     )
 
 
-@workflows.activity(start_to_close_timeout=timedelta(seconds=120), retry_policy_max_attempts=2)
-async def evaluate_amendment(eme: Amendment) -> Evaluation:
+async def _evaluate(eme: Amendment) -> Evaluation:
+    """Plain-function body of the evaluate_amendment activity (LLM call)."""
     from mistralai.workflows.plugins.mistralai import get_mistral_client
 
     client = get_mistral_client()
@@ -150,6 +153,109 @@ async def evaluate_amendment(eme: Amendment) -> Evaluation:
     return build_evaluation(eme, parsed)
 
 
+async def _save(evaluations: list[Evaluation]) -> int:
+    """Plain-function body of the save_evaluations activity (idempotent upsert)."""
+    return await supabase.insert_evaluations(evaluations)
+
+
+@workflows.activity(start_to_close_timeout=timedelta(seconds=120), retry_policy_max_attempts=2)
+async def evaluate_amendment(eme: Amendment) -> Evaluation:
+    return await _evaluate(eme)
+
+
 @workflows.activity(start_to_close_timeout=timedelta(seconds=180), retry_policy_max_attempts=2)
 async def save_evaluations(evaluations: list[Evaluation]) -> int:
-    return await supabase.insert_evaluations(evaluations)
+    return await _save(evaluations)
+
+
+class EvalOutcome(BaseModel):
+    amendment_id: str
+    status: Literal["evaluated", "reused", "skipped"]
+    reason: str | None = None      # for skipped: "already_evaluated" | "not_relevant" | "not_current" | "no_text"
+
+
+_AMENDMENT_SELECT = (
+    "id,legislature:legislatura,number:numero,type:tipo,committee_seat:sede_commissione,"
+    "act_uri:atto_uri,bill:ddl,text_url:url_testo,text_xml_url:url_testo_xml,date:data,text:testo,"
+    "chamber:camera,natural_key:chiave_naturale,text_hash:testo_hash,relevant_spending:rilevante_spesa,"
+    "corrente,valutazioni(id)"
+)
+_VALUTAZIONE_BY_HASH_SELECT = (
+    "id,score_totale,riepilogo,modello,testo_hash,rubrica_versione,impatto_finanziario,alloca_risorse,"
+    "importo_stimato_eur,motivazione_finanziaria,punteggi(criterio,punteggio,motivazione)"
+)
+
+
+async def _fetch_amendment_row(client: httpx.AsyncClient, amendment_id: str) -> dict | None:
+    rows = await source_supabase.select_all(
+        client, "emendamenti", _AMENDMENT_SELECT, {"id": f"eq.{amendment_id}"}
+    )
+    return rows[0] if rows else None
+
+
+async def _find_evaluation_by_text_hash(client: httpx.AsyncClient, text_hash: str) -> dict | None:
+    rows = await source_supabase.select_all(
+        client,
+        "valutazioni",
+        _VALUTAZIONE_BY_HASH_SELECT,
+        {"rubrica_versione": "eq.2", "testo_hash": f"eq.{text_hash}"},
+        page_size=1,
+    )
+    return rows[0] if rows else None
+
+
+async def evaluate_and_save_impl(client: httpx.AsyncClient, amendment_id: str) -> EvalOutcome:
+    """Plain-function body of evaluate_and_save: gate (already evaluated / not current /
+    not relevant / no text), reuse by testo_hash (valutazioni.copiata_da), else LLM."""
+    row = await _fetch_amendment_row(client, amendment_id)
+    if row is None:
+        return EvalOutcome(amendment_id=amendment_id, status="skipped", reason="not_found")
+    if row.get("valutazioni"):
+        return EvalOutcome(amendment_id=amendment_id, status="skipped", reason="already_evaluated")
+    if not row.get("corrente"):
+        return EvalOutcome(amendment_id=amendment_id, status="skipped", reason="not_current")
+    if row.get("relevant_spending") is not True:
+        return EvalOutcome(amendment_id=amendment_id, status="skipped", reason="not_relevant")
+    eme = Amendment(**{k: row[k] for k in Amendment.model_fields if k in row})
+    if not eme.text:
+        return EvalOutcome(amendment_id=amendment_id, status="skipped", reason="no_text")
+    if eme.text_hash:
+        src = await _find_evaluation_by_text_hash(client, eme.text_hash)
+        if src is not None:
+            copy = Evaluation(
+                amendment_id=amendment_id,
+                scores=[
+                    Score(criterion=p["criterio"], score=p["punteggio"], rationale=p["motivazione"])
+                    for p in src.get("punteggi") or []
+                ],
+                total_score=src.get("score_totale"),
+                summary=src.get("riepilogo") or "",
+                model=src.get("modello") or MODEL,
+                ts=datetime.now(timezone.utc).isoformat(),
+                rubric_version=2,
+                text_hash=eme.text_hash,
+                financial_impact=src.get("impatto_finanziario"),
+                allocates_resources=src.get("alloca_risorse"),
+                estimated_amount_eur=src.get("importo_stimato_eur"),
+                financial_rationale=src.get("motivazione_finanziaria"),
+                copied_from=src["id"],
+            )
+            inserted = await _save([copy])
+            return EvalOutcome(
+                amendment_id=amendment_id,
+                status="reused" if inserted else "skipped",
+                reason=None if inserted else "already_evaluated",
+            )
+    evaluation = await _evaluate(eme)
+    await _save([evaluation])
+    return EvalOutcome(amendment_id=amendment_id, status="evaluated")
+
+
+@workflows.activity(start_to_close_timeout=timedelta(seconds=180), retry_policy_max_attempts=2)
+async def evaluate_and_save(amendment_id: str) -> EvalOutcome:
+    """Evaluates one stored amendment (gated + reuse) and saves the valutazione.
+    Saving uses the same on_conflict/ignore-duplicates POST as save_evaluations,
+    so a concurrent duplicate is a no-op."""
+    base, key = source_supabase.supabase_base_and_key()
+    async with httpx.AsyncClient(timeout=60.0, headers=source_supabase.supabase_headers(key)) as client:
+        return await evaluate_and_save_impl(client, amendment_id)

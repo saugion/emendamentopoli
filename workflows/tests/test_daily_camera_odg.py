@@ -53,6 +53,9 @@ def _wire_db(monkeypatch, fake: FakeSupabase):
             if r.get("chiave_naturale") in set(keys) and r.get("corrente")
         }
 
+    async def _atti_flags(legislature: int):
+        return dict(fake.atti)
+
     async def _save_rows(rows: list[dict]):
         fake.upsert_emendamenti(rows)
         fake.rpc_ricalcola_versioni(sorted({r["chiave_naturale"] for r in rows}))
@@ -60,7 +63,47 @@ def _wire_db(monkeypatch, fake: FakeSupabase):
     monkeypatch.setattr(mod, "db_cursor_get", _cursor_get)
     monkeypatch.setattr(mod, "db_cursor_set", _cursor_set)
     monkeypatch.setattr(mod, "db_current_rows", _current_rows)
+    monkeypatch.setattr(mod, "db_atti_flags", _atti_flags)
     monkeypatch.setattr(mod, "db_save_odg_rows", _save_rows)
+
+
+def _wire_eval(monkeypatch, fake: FakeSupabase):
+    """Fake evaluate_and_save mirroring the real gate + reuse-by-testo_hash logic."""
+    from amendments_worker.workflows.evaluation import EvalOutcome
+
+    async def _evaluate_and_save(amendment_id: str) -> EvalOutcome:
+        row = fake.emendamenti[amendment_id]
+        if any(v["emendamento_id"] == amendment_id for v in fake.valutazioni.values()):
+            return EvalOutcome(amendment_id=amendment_id, status="skipped", reason="already_evaluated")
+        if not row.get("corrente"):
+            return EvalOutcome(amendment_id=amendment_id, status="skipped", reason="not_current")
+        if row.get("rilevante_spesa") is not True:
+            return EvalOutcome(amendment_id=amendment_id, status="skipped", reason="not_relevant")
+        if not row.get("testo"):
+            return EvalOutcome(amendment_id=amendment_id, status="skipped", reason="no_text")
+        h = row.get("testo_hash")
+        src = next(
+            (
+                v
+                for v in fake.valutazioni.values()
+                if v.get("testo_hash") == h and v.get("rubrica_versione") == 2
+            ),
+            None,
+        )
+        vid = fake._next_valutazione_id
+        fake._next_valutazione_id += 1
+        v = {
+            "id": vid,
+            "emendamento_id": amendment_id,
+            "rubrica_versione": 2,
+            "testo_hash": h,
+            "score_totale": src.get("score_totale") if src else 7.0,
+            "copiata_da": src["id"] if src else None,
+        }
+        fake.valutazioni[vid] = v
+        return EvalOutcome(amendment_id=amendment_id, status="reused" if src else "evaluated")
+
+    monkeypatch.setattr(mod, "evaluate_and_save", _evaluate_and_save)
 
 
 def _sicross_router(router, routes: dict[str, str]):
@@ -94,6 +137,7 @@ def test_camera_odg_workflow_is_discoverable():
 
 async def _run(monkeypatch, fake: FakeSupabase, items, routes, **input_kw):
     _wire_db(monkeypatch, fake)
+    _wire_eval(monkeypatch, fake)
     _patch_pages(monkeypatch, [items])
     with respx.mock(assert_all_called=False) as router:
         _sicross_router(router, routes)
@@ -112,7 +156,7 @@ async def test_incremental_run_saves_versions_and_cursor(monkeypatch):
     assert d["fetched"] == 2
     assert d["saved_rows"] == 3  # 9/03076/003 has 2 versions, 9/03076/001 has 1
     assert d["skipped_unchanged"] == 0
-    assert d["evaluated"] == 0  # evaluation is wired in Phase 2
+    assert d["evaluated"] == 1  # only 9/03076/003#v2 is current AND money-relevant
     assert d["cursor"] == max(i.modified for i in items)
     assert fake.cursori["camera_odg_modified"] == d["cursor"]
     assert len(fake.emendamenti) == 3
@@ -174,3 +218,20 @@ async def test_max_items_stops_and_sets_cursor(monkeypatch):
     assert d["stopped_by_max_items"] is True
     assert d["fetched"] == 2
     assert d["cursor"] == items[1].modified
+
+
+async def test_reuse_by_text_hash(monkeypatch):
+    fake = FakeSupabase()
+    # two distinct ODG whose sicross page is the same fixture -> identical testo_hash
+    items = _items(("9/03076/003", "003"), ("9/03076/009", "003"))
+    routes = {"003": "camera_sicross_9_03076_003.html"}
+    d = await _run(monkeypatch, fake, items, routes)
+    assert d["fetched"] == 2
+    assert d["evaluated"] == 1
+    assert d["reused_evaluations"] == 1
+    vals = list(fake.valutazioni.values())
+    assert len(vals) == 2
+    copied = [v for v in vals if v.get("copiata_da") is not None]
+    assert len(copied) == 1
+    assert copied[0]["copiata_da"] == [v for v in vals if v.get("copiata_da") is None][0]["id"]
+    assert copied[0]["testo_hash"] == [v for v in vals if v.get("copiata_da") is None][0]["testo_hash"]

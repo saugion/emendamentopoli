@@ -39,7 +39,8 @@ async def _enrich(eme: mod.Amendment) -> mod.Amendment:
         raise RuntimeError("AKN unreachable")
     eme.date = DATE if eme.id.endswith("/1") else "2026-01-09"
     eme.bill = "Ddl 391"
-    eme.text = "text"
+    eme.text = "stanziamento di 5 milioni di euro"
+    eme.relevant_spending = True
     return eme
 
 
@@ -117,7 +118,8 @@ async def test_multi_day_period() -> None:
         n = int(eme.id.rsplit("/", 1)[-1])
         eme.date = {1: DATE, 2: "2026-01-11", 3: "2026-01-12"}[n]
         eme.bill = "Ddl 391"
-        eme.text = "text"
+        eme.text = "stanziamento di 5 milioni di euro"
+        eme.relevant_spending = True
         return eme
 
     report = await ingest.ingest_period(
@@ -150,7 +152,8 @@ async def test_pagination_with_early_stop() -> None:
         n = int(eme.id.rsplit("/", 1)[-1])
         eme.date = {1: "2026-01-12", 2: "2026-01-11", 3: DATE, 4: "2026-01-09", 5: "2026-01-08"}[n]
         eme.bill = "Ddl 391"
-        eme.text = "text"
+        eme.text = "stanziamento di 5 milioni di euro"
+        eme.relevant_spending = True
         return eme
 
     report = await ingest.ingest_period(
@@ -174,7 +177,8 @@ async def test_skips_already_saved() -> None:
         seen.append(eme.id)
         eme.date = "2026-01-09"
         eme.bill = "Ddl 391"
-        eme.text = "text"
+        eme.text = "stanziamento di 5 milioni di euro"
+        eme.relevant_spending = True
         return eme
 
     report = await ingest.ingest_period(
@@ -203,7 +207,8 @@ async def test_backfills_missing_signatories() -> None:
         seen.append(eme.id)
         eme.date = DATE
         eme.bill = "Ddl 391"
-        eme.text = "text"
+        eme.text = "stanziamento di 5 milioni di euro"
+        eme.relevant_spending = True
         eme.signatories = ["Rossi"]
         eme.signatory_uris = ["https://www.senato.it/leg/19/BGT/Schede/Attsen/00000407.htm"]
         return eme
@@ -238,7 +243,8 @@ async def test_incremental_save_per_page() -> None:
         n = int(eme.id.rsplit("/", 1)[-1])
         eme.date = DATE if n < 3 else "2026-01-09"
         eme.bill = "Ddl 391"
-        eme.text = "text"
+        eme.text = "stanziamento di 5 milioni di euro"
+        eme.relevant_spending = True
         return eme
 
     async def _save_counted(amendments: list[mod.Amendment]) -> int:
@@ -277,7 +283,8 @@ async def test_page_failure_is_not_fatal() -> None:
     async def _enrich_one(eme: mod.Amendment) -> mod.Amendment:
         eme.date = DATE
         eme.bill = "Ddl 391"
-        eme.text = "text"
+        eme.text = "stanziamento di 5 milioni di euro"
+        eme.relevant_spending = True
         return eme
 
     report = await ingest.ingest_period(
@@ -343,3 +350,23 @@ async def test_saved_map_reads_all_pages(monkeypatch) -> None:
     result = await mod.saved_amendments_map(19)
     assert len(result) == 2345
     assert result["r00000"] == {"data": "2026-01-10", "firmatari": "Rossi"}
+
+
+async def test_non_relevant_not_evaluated() -> None:
+    SAVED.clear()
+    EVALUATED.clear()
+
+    async def _enrich_irrelevant(eme: mod.Amendment) -> mod.Amendment:
+        eme.date = DATE if eme.id.endswith("/1") else "2026-01-09"
+        eme.bill = "Ddl 391"
+        eme.text = "a istituire un tavolo tecnico"
+        eme.relevant_spending = False
+        return eme
+
+    report = await ingest.ingest_period(
+        DATE, DATE, 19, 10, _deps(enrich=_enrich_irrelevant)
+    )
+    assert report.found == 1
+    assert report.saved == 1
+    assert report.evaluated == 0
+    assert EVALUATED == []

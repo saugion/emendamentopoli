@@ -112,8 +112,11 @@ async def ingest_period(
         if page_in_period:
             saved += await deps.save(page_in_period)
             in_period.extend(page_in_period)
-            # evaluate only newly seen amendments: already-saved ones have a valutazione already
-            to_evaluate = [a for a in page_in_period if a.id not in already_saved]
+            # evaluate only newly seen, money-relevant amendments: already-saved ones have a
+            # valutazione already, and non-relevant ones never reach the LLM (pre-filter R1)
+            to_evaluate = [
+                a for a in page_in_period if a.id not in already_saved and a.relevant_spending
+            ]
             eval_results = await asyncio.gather(
                 *[_evaluate(a) for a in to_evaluate],
                 return_exceptions=True,

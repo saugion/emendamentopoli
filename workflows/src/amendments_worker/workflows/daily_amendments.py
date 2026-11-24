@@ -22,6 +22,8 @@ from ..sources.senato import (  # re-exported: tests import query_recent_metadat
     query_recent_metadata,
     sparql_url,
 )
+from ..sources.common import testo_hash
+from ..sources.rilevanza import calcola_rilevanza
 from ..sources.supabase import select_all, supabase_base_and_key, supabase_headers
 from . import akn
 from . import supabase
@@ -159,6 +161,8 @@ async def enrich_amendment(eme: Amendment) -> Amendment:
     eme.text = parsed.text
     eme.signatories = parsed.signatories
     eme.signatory_uris = parsed.signatory_uris
+    eme.text_hash = testo_hash(eme.text)
+    eme.relevant_spending, eme.relevance_reasons = calcola_rilevanza(eme.text, {})
     return eme
 
 
