@@ -86,6 +86,9 @@ def evaluation_row(v: "Evaluation") -> dict:
         "riepilogo": v.summary,
         "modello": v.model,
         "ts": v.ts,
+        "rubrica_versione": v.rubric_version,
+        "testo_hash": v.text_hash,
+        "copiata_da": v.copied_from,
     }
 
 
@@ -119,6 +122,8 @@ async def upsert_amendments(amendments: list[Amendment]) -> int:
 
 
 async def insert_evaluations(evaluations: list["Evaluation"]) -> int:
+    # idempotent: unique index (emendamento_id, rubrica_versione) + ignore-duplicates;
+    # punteggi are matched to the returned rows by emendamento_id, never by position
     base, headers = _config()
     total = 0
     for i in range(0, len(evaluations), SAVE_CHUNK):
@@ -126,18 +131,19 @@ async def insert_evaluations(evaluations: list["Evaluation"]) -> int:
         inserted = await _post(
             base,
             headers,
-            "/rest/v1/valutazioni",
+            "/rest/v1/valutazioni?on_conflict=emendamento_id,rubrica_versione",
             [evaluation_row(v) for v in chunk],
-            "return=representation",
+            "resolution=ignore-duplicates,return=representation",
         )
+        by_amendment = {v.amendment_id: v for v in chunk}
         score_payload = [
             row
-            for v, inserted_row in zip(chunk, inserted)
-            for row in score_rows(inserted_row["id"], v)
+            for ins in inserted
+            for row in score_rows(ins["id"], by_amendment[ins["emendamento_id"]])
         ]
         if score_payload:
             await _post(base, headers, "/rest/v1/punteggi", score_payload, None)
-        total += len(chunk)
+        total += len(inserted)
     return total
 
 

@@ -31,6 +31,13 @@ class Evaluation(BaseModel):
     summary: str
     model: str
     ts: str
+    rubric_version: int = 1
+    text_hash: str | None = None
+    financial_impact: float | None = None
+    allocates_resources: bool | None = None
+    estimated_amount_eur: float | None = None
+    financial_rationale: str | None = None
+    copied_from: int | None = None
 
 
 class _ScoreJSON(BaseModel):
