@@ -12,19 +12,22 @@ pagination/policy loop lives in ingest.py; this file only wires the adapters.
 
 import asyncio
 from datetime import timedelta
-from urllib.parse import quote
 
 from pydantic import BaseModel, Field, model_validator
 
 import mistralai.workflows as workflows
 
+from ..sources.senato import (  # re-exported: tests import query_recent_metadata from this module
+    SPARQL_ENDPOINT,
+    query_recent_metadata,
+    sparql_url,
+)
 from . import akn
 from . import supabase
 from .ingest import IngestDeps, ingest_period
 from .models import Amendment
 from .evaluation import save_evaluations, evaluate_amendment
 
-SPARQL_ENDPOINT = "https://dati.senato.it/sparql"
 UA = "curl/8.5.0"  # CloudFront only accepts curl-like user-agents on these paths
 TIMEZONE = "Europe/Rome"
 
@@ -69,25 +72,6 @@ class DailyAmendmentsOutput(BaseModel):
     evaluation_errors: list[str]
 
 
-def query_recent_metadata(legislature: int, limit: int, offset: int = 0) -> str:
-    return (
-        "PREFIX osr: <http://dati.senato.it/osr/>\n"
-        "SELECT ?eme ?number ?type ?committeeFlag ?act ?textUrl ?textXmlUrl WHERE {\n"
-        "  ?eme a osr:Emendamento ;\n"
-        f"       osr:legislatura {legislature} ;\n"
-        "       osr:numero ?number ;\n"
-        "       osr:tipo ?type ;\n"
-        "       osr:flagCommissione ?committeeFlag ;\n"
-        "       osr:oggetto ?act ;\n"
-        "       osr:URLTesto ?textUrl ;\n"
-        "       osr:URLTestoXml ?textXmlUrl .\n"
-        "}\n"
-        # 7-digit ids in legislature XIX: lexicographic DESC order is also numeric DESC
-        "ORDER BY DESC(?eme)\n"
-        f"LIMIT {limit} OFFSET {offset}"
-    )
-
-
 @workflows.activity(start_to_close_timeout=timedelta(seconds=30), retry_policy_max_attempts=1)
 async def yesterday() -> str:
     from datetime import datetime, timedelta as delta
@@ -105,12 +89,7 @@ async def saved_amendments_map(legislature: int) -> dict[str, dict[str, str | No
 async def fetch_metadata_page(legislature: int, page_limit: int, offset: int) -> list[Amendment]:
     import httpx
 
-    url = (
-        SPARQL_ENDPOINT
-        + "?query="
-        + quote(query_recent_metadata(legislature, page_limit, offset))
-        + "&format=application%2Fsparql-results%2Bjson"
-    )
+    url = sparql_url(query_recent_metadata(legislature, page_limit, offset))
     async with httpx.AsyncClient(
         timeout=90.0,
         headers={"Accept": "application/sparql-results+json", "User-Agent": UA},
