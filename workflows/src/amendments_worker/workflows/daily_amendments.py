@@ -24,7 +24,7 @@ from .evaluation import Evaluation, save_evaluations, evaluate_amendment
 SPARQL_ENDPOINT = "https://dati.senato.it/sparql"
 UA = "curl/8.5.0"  # CloudFront only accepts curl-like user-agents on these paths
 TIMEZONE = "Europe/Rome"
-ENRICH_CONCURRENCY = 8
+ENRICH_CONCURRENCY = 5
 EVALUATION_CONCURRENCY = 10
 SPARQL_PAGE = 100
 
@@ -215,7 +215,7 @@ async def saved_amendments_map(legislature: int) -> dict[str, dict[str, str | No
         return {r["id"]: {"data": r["data"], "firmatari": r["firmatari"]} for r in resp.json()}
 
 
-@workflows.activity(start_to_close_timeout=timedelta(seconds=120), retry_policy_max_attempts=3)
+@workflows.activity(start_to_close_timeout=timedelta(seconds=300), retry_policy_max_attempts=3)
 async def fetch_metadata_page(legislature: int, page_limit: int, offset: int) -> list[Amendment]:
     import httpx
 
@@ -231,7 +231,7 @@ async def fetch_metadata_page(legislature: int, page_limit: int, offset: int) ->
     ) as client:
         for attempt in range(4):
             if attempt:
-                await asyncio.sleep(10 * attempt)
+                await asyncio.sleep(20 * attempt)
             resp = await client.get(url)
             if resp.status_code in (403, 429, 500, 502, 503) and attempt < 3:
                 continue
@@ -263,7 +263,7 @@ async def enrich_amendment(eme: Amendment) -> Amendment:
     url = eme.text_xml_url
     if url.startswith("http:"):
         url = "https:" + url[len("http:") :]
-    await asyncio.sleep(0.2)
+    await asyncio.sleep(0.3)
     async with httpx.AsyncClient(timeout=45.0, headers={"User-Agent": UA}) as client:
         for attempt in range(3):
             if attempt:
@@ -349,9 +349,13 @@ class DailyAmendmentsWorkflow:
         evaluated = 0
         offset = 0
         while len(metadata) < input.limit:
-            page = await fetch_metadata_page(
-                input.legislature, min(SPARQL_PAGE, input.limit - len(metadata)), offset
-            )
+            try:
+                page = await fetch_metadata_page(
+                    input.legislature, min(SPARQL_PAGE, input.limit - len(metadata)), offset
+                )
+            except Exception as e:
+                errors.append(f"fetch_metadata_page offset={offset}: {type(e).__name__}: {e}")
+                break
             if not page:
                 break
             metadata.extend(page)
