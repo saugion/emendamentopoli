@@ -2,8 +2,6 @@
 
 from pydantic import BaseModel, Field
 
-SAVE_CHUNK = 500
-
 
 class Amendment(BaseModel):
     id: str  # dati.senato.it URI

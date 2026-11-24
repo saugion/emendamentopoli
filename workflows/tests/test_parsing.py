@@ -6,8 +6,8 @@ from amendments_worker.workflows.daily_amendments import (
     extract_signatories,
     senator_profile,
     query_recent_metadata,
-    supabase_row,
 )
+from amendments_worker.workflows.supabase import amendment_row
 
 XML_AKN = """<?xml version="1.0" encoding="iso-8859-1"?>
 <an:akomaNtoso>
@@ -60,7 +60,7 @@ def test_supabase_row():
         bill="Ddl 391",
         text="text",
     )
-    row = supabase_row(a)
+    row = amendment_row(a)
     assert row["id"] == a.id
     assert row["sede_commissione"] is True
     assert row["data"] == "2026-01-10"
@@ -99,7 +99,7 @@ def test_supabase_row_with_signatories():
             "",
         ],
     )
-    row = supabase_row(a)
+    row = amendment_row(a)
     assert row["firmatari"] == "Rossi, Bianchi"
     assert row["firmatari_uri"] == (
         "https://www.senato.it/leg/19/BGT/Schede/Attsen/00000407.htm, "
