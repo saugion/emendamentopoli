@@ -160,7 +160,7 @@ async def saved_id_date_map(legislature: int) -> dict[str, str | None]:
 
     base = os.environ["SUPABASE_URL"].rstrip("/")
     key = os.environ["SUPABASE_KEY"]
-    url = f"{base}/rest/v1/emendamenti?select=id,data&legislature=eq.{legislature}&limit=100000"
+    url = f"{base}/rest/v1/emendamenti?select=id,data&legislatura=eq.{legislature}&limit=100000"
     async with httpx.AsyncClient(timeout=45.0) as client:
         resp = await client.get(url, headers={"apikey": key, "Authorization": f"Bearer {key}"})
         resp.raise_for_status()
