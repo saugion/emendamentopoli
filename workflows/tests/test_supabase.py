@@ -85,20 +85,6 @@ def _evaluation() -> Evaluation:
     )
 
 
-async def test_upsert_amendments_chunks_with_prefer(transport, monkeypatch):
-    calls, responses = transport
-    monkeypatch.setattr(supabase, "SAVE_CHUNK", 2)
-    responses.extend([FakeResp(None), FakeResp(None)])
-    total = await supabase.upsert_amendments([_eme(1), _eme(2), _eme(3)])
-    assert total == 3
-    assert len(calls) == 2
-    first, second = calls
-    assert first[1].endswith("/rest/v1/emendamenti?on_conflict=id")
-    assert first[2]["Prefer"] == "resolution=merge-duplicates"
-    assert len(first[3]) == 2 and len(second[3]) == 1
-    assert first[3][0]["id"] == "http://dati.senato.it/emendamento/1"
-
-
 async def test_insert_evaluations_posts_valutazioni_then_punteggi(transport):
     calls, responses = transport
     responses.extend(

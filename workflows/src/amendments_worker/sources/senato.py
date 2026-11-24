@@ -11,9 +11,17 @@ so the two adapters are pinned to the same behaviour.
 """
 
 import re
+from typing import TYPE_CHECKING
 from urllib.parse import quote
 
+import httpx
 from pydantic import BaseModel, Field
+
+from .common import testo_hash
+from . import supabase as source_supabase
+
+if TYPE_CHECKING:
+    from ..workflows.models import Amendment
 
 SPARQL_ENDPOINT = "https://dati.senato.it/sparql"
 
@@ -149,3 +157,48 @@ def parse(xml: str, legislature: int) -> ParsedAkn:
         signatories=names,
         signatory_uris=uris,
     )
+
+
+def senato_key(
+    atto_uri: str, tipo: str | None, committee_seat: bool, numero: str, legislature: int
+) -> str:
+    """Natural key of a Senate row, with the same normalization as the 0004 SQL backfill:
+    senato:<legislatura>:<oggettotrattazione id>:<tipo>:<A|C>:<numero normalized upper>."""
+    atto_id = atto_uri.rsplit("/", 1)[-1]
+    num = re.sub(r"\s+", " ", numero.strip()).upper()
+    return (
+        f"senato:{legislature}:{atto_id}:{tipo or '?'}:"
+        f"{'C' if committee_seat else 'A'}:{num}"
+    )
+
+
+def senato_row(a: "Amendment") -> dict:
+    """supabase_row(a) plus chiave_naturale, ordine_versione (numeric URI tail), camera, testo_hash."""
+    from ..workflows.supabase import amendment_row
+
+    row = amendment_row(a)
+    row["chiave_naturale"] = senato_key(
+        a.act_uri or "", a.type, a.committee_seat, a.number, a.legislature
+    )
+    row["ordine_versione"] = int(a.id.rsplit("/", 1)[-1])
+    row["camera"] = "senato"
+    row["testo_hash"] = testo_hash(a.text)
+    return row
+
+
+async def save_senato_amendments(client: httpx.AsyncClient, amendments: list["Amendment"]) -> int:
+    """Upsert Senate amendments (on_conflict=id) in chunks; after each chunk call
+    ricalcola_versioni for the chunk's natural keys so versione/corrente/superato_da
+    are computed by the DB function, never by Python."""
+    rows = [senato_row(a) for a in amendments]
+    total = 0
+    for i in range(0, len(rows), source_supabase.SAVE_CHUNK):
+        chunk = rows[i : i + source_supabase.SAVE_CHUNK]
+        await source_supabase.upsert(client, "emendamenti", chunk, "id")
+        await source_supabase.rpc(
+            client,
+            "ricalcola_versioni",
+            {"p_chiavi": sorted({r["chiave_naturale"] for r in chunk})},
+        )
+        total += len(chunk)
+    return total

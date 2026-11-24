@@ -109,23 +109,6 @@ def score_rows(evaluation_id: int, v: "Evaluation") -> list[dict]:
     ]
 
 
-async def upsert_amendments(amendments: list[Amendment]) -> int:
-    base, headers = _config()
-    rows = [amendment_row(a) for a in amendments]
-    total = 0
-    for i in range(0, len(rows), SAVE_CHUNK):
-        chunk = rows[i : i + SAVE_CHUNK]
-        await _post(
-            base,
-            headers,
-            "/rest/v1/emendamenti?on_conflict=id",
-            chunk,
-            "resolution=merge-duplicates",
-        )
-        total += len(chunk)
-    return total
-
-
 async def insert_evaluations(evaluations: list["Evaluation"]) -> int:
     # idempotent: unique index (emendamento_id, rubrica_versione) + ignore-duplicates;
     # punteggi are matched to the returned rows by emendamento_id, never by position

@@ -161,7 +161,13 @@ async def enrich_amendment(eme: Amendment) -> Amendment:
 
 @workflows.activity(start_to_close_timeout=timedelta(seconds=180), retry_policy_max_attempts=2)
 async def save_amendments(amendments: list[Amendment]) -> int:
-    return await supabase.upsert_amendments(amendments)
+    import httpx
+
+    from ..sources.senato import save_senato_amendments
+
+    base, key = supabase_base_and_key()
+    async with httpx.AsyncClient(timeout=150.0, headers=supabase_headers(key)) as client:
+        return await save_senato_amendments(client, amendments)
 
 
 @workflows.workflow.define(
