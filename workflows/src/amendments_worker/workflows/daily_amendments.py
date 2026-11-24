@@ -334,9 +334,19 @@ class DailyAmendmentsWorkflow:
                 return await enrich_amendment(m)
 
         already_saved = await saved_amendments_map(input.legislature)
+        eval_sem = asyncio.Semaphore(EVALUATION_CONCURRENCY)
+
+        async def _evaluate(a: Amendment) -> Evaluation:
+            async with eval_sem:
+                return await evaluate_amendment(a)
+
         metadata: list[Amendment] = []
-        analyzed: list[Amendment] = []
+        analyzed_count = 0
+        in_period: list[Amendment] = []
         errors: list[str] = []
+        evaluation_errors: list[str] = []
+        saved = 0
+        evaluated = 0
         offset = 0
         while len(metadata) < input.limit:
             page = await fetch_metadata_page(
@@ -362,42 +372,39 @@ class DailyAmendmentsWorkflow:
                 if isinstance(r, BaseException)
             )
             page_ok = [r for r in results if not isinstance(r, BaseException)]
-            analyzed.extend(page_ok)
+            analyzed_count += len(page_ok)
             dates = [a.date for a in page_ok if a.date]
             dates += [
                 already_saved[m.id]["data"]
                 for m in page
                 if m.id in already_saved and already_saved[m.id]["data"]
             ]
+            page_in_period = [a for a in page_ok if a.date and start_date <= a.date <= end_date]
+            if page_in_period:
+                saved += await save_amendments(page_in_period)
+                in_period.extend(page_in_period)
+                # evaluate only newly seen amendments: already-saved ones have a valutazione already
+                to_evaluate = [a for a in page_in_period if a.id not in already_saved]
+                eval_results = await asyncio.gather(
+                    *[_evaluate(a) for a in to_evaluate],
+                    return_exceptions=True,
+                )
+                evaluation_errors.extend(
+                    f"{a.id}: {type(r).__name__}: {r}"
+                    for a, r in zip(to_evaluate, eval_results)
+                    if isinstance(r, BaseException)
+                )
+                evaluations = [r for r in eval_results if not isinstance(r, BaseException)]
+                evaluated += await save_evaluations(evaluations) if evaluations else 0
             if dates and min(dates) < start_date:
                 break
-        in_period = [a for a in analyzed if a.date and start_date <= a.date <= end_date]
-        saved = await save_amendments(in_period) if in_period else 0
-        # evaluate only newly seen amendments: already-saved ones have a valutazione already
-        to_evaluate = [a for a in in_period if a.id not in already_saved]
-        eval_sem = asyncio.Semaphore(EVALUATION_CONCURRENCY)
 
-        async def _evaluate(a: Amendment) -> Evaluation:
-            async with eval_sem:
-                return await evaluate_amendment(a)
-
-        eval_results = await asyncio.gather(
-            *[_evaluate(a) for a in to_evaluate],
-            return_exceptions=True,
-        )
-        evaluation_errors = [
-            f"{a.id}: {type(r).__name__}: {r}"
-            for a, r in zip(to_evaluate, eval_results)
-            if isinstance(r, BaseException)
-        ]
-        evaluations = [r for r in eval_results if not isinstance(r, BaseException)]
-        evaluated = await save_evaluations(evaluations) if evaluations else 0
         return DailyAmendmentsOutput(
             date=start_date,
             end_date=end_date,
             legislature=input.legislature,
             metadata_fetched=len(metadata),
-            analyzed=len(analyzed),
+            analyzed=analyzed_count,
             found=len(in_period),
             saved=saved,
             evaluated=evaluated,

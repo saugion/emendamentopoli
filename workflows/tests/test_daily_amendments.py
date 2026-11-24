@@ -270,6 +270,55 @@ async def test_backfills_missing_signatories(monkeypatch) -> None:
     ]
 
 
+async def test_incremental_save_per_page(monkeypatch) -> None:
+    SAVED.clear()
+    EVALUATED.clear()
+    save_calls: list[int] = []
+    pages = [
+        [_eme(1)],
+        [_eme(2), _eme(3)],
+    ]
+
+    async def _pages(legislature: int, page_limit: int, offset: int) -> list[mod.Amendment]:
+        return pages.pop(0) if pages else []
+
+    async def _enrich_pages(eme: mod.Amendment) -> mod.Amendment:
+        n = int(eme.id.rsplit("/", 1)[-1])
+        eme.date = DATE if n < 3 else "2026-01-09"
+        eme.bill = "Ddl 391"
+        eme.text = "text"
+        return eme
+
+    async def _save_counted(amendments: list[mod.Amendment]) -> int:
+        save_calls.append(len(amendments))
+        return await _save(amendments)
+
+    monkeypatch.setattr(mod, "yesterday", _yesterday)
+    monkeypatch.setattr(mod, "saved_amendments_map", _saved_map_empty)
+    monkeypatch.setattr(mod, "fetch_metadata_page", _pages)
+    monkeypatch.setattr(mod, "enrich_amendment", _enrich_pages)
+    monkeypatch.setattr(mod, "save_amendments", _save_counted)
+    monkeypatch.setattr(mod, "evaluate_amendment", _evaluate)
+    monkeypatch.setattr(mod, "save_evaluations", _save_evaluations)
+    result = await workflows.execute_workflow(
+        mod.DailyAmendmentsWorkflow,
+        params=mod.DailyAmendmentsInput(date=DATE, legislature=19, limit=10),
+    )
+    d = result if isinstance(result, dict) else result.model_dump()
+    assert save_calls == [1, 1]
+    assert d["metadata_fetched"] == 3
+    assert d["analyzed"] == 3
+    assert d["found"] == 2
+    assert d["saved"] == 2
+    assert d["evaluated"] == 2
+    assert d["ids"] == [
+        "http://dati.senato.it/emendamento/1",
+        "http://dati.senato.it/emendamento/2",
+    ]
+    assert len(SAVED) == 2
+    assert len(EVALUATED) == 2
+
+
 def test_inconsistent_period() -> None:
     import pytest
 
