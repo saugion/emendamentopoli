@@ -130,3 +130,64 @@ async def test_save_evaluations_maps_scores_by_amendment_id(monkeypatch):
     assert score_body == [
         {"valutazione_id": 7, "criterio": "ambiente", "punteggio": 5, "motivazione": "r"}
     ]
+
+
+V2_PAYLOAD = (
+    '{"punteggi":{"trasparenza":{"punteggio":8,"motivazione":"a"},'
+    '"salute":{"punteggio":6,"motivazione":"b"},'
+    '"ambiente":{"punteggio":2,"motivazione":"c"},'
+    '"concretezza":{"punteggio":9,"motivazione":"d"}},"riepilogo":"ok",'
+    '"impatto_finanziario":{"punteggio":12,"motivazione":"stanzia risorse"},'
+    '"alloca_risorse":true,"importo_stimato_eur":-5000000}'
+)
+
+
+def test_parse_evaluation_json_v2():
+    from amendments_worker.workflows.evaluation import build_evaluation
+
+    parsed = EvaluationJSON.model_validate_json(V2_PAYLOAD)
+    assert parsed.financial_impact is not None and parsed.financial_impact.score == 12
+    assert parsed.allocates_resources is True
+    assert parsed.estimated_amount_eur == -5000000
+    v = build_evaluation(_eme(), parsed)
+    assert v.rubric_version == 2
+    assert v.financial_impact == 10.0  # clamped to [0, 10]
+    assert v.estimated_amount_eur == 5000000.0  # stored as absolute value
+    assert v.allocates_resources is True
+    assert v.financial_rationale == "stanzia risorse"
+    assert v.text_hash is not None
+    # composite score unchanged and independent of impatto_finanziario
+    assert v.total_score == composite_score(v.scores)
+
+
+def test_build_evaluation_requires_financial_fields():
+    from amendments_worker.workflows.evaluation import build_evaluation
+
+    v1 = EvaluationJSON.model_validate_json(
+        '{"punteggi":{"trasparenza":{"punteggio":8,"motivazione":"a"}},"riepilogo":"ok"}'
+    )
+    with pytest.raises(ValueError, match="impatto_finanziario"):
+        build_evaluation(_eme(), v1)
+
+
+def test_prompt_is_chamber_aware():
+    eme = _eme().model_copy(update={"chamber": "camera", "bill": "C. 3076", "type": "G"})
+    p = evaluation_prompt(eme)
+    assert "(Camera," in p
+    assert "La Camera e' l'organo" in p
+    assert "Ordine del giorno 1.30" in p
+    assert "C. 3076" in p
+    assert "impatto_finanziario" in p and "alloca_risorse" in p and "importo_stimato_eur" in p
+
+
+def test_evaluation_row_has_financial_keys():
+    from amendments_worker.workflows.evaluation import build_evaluation
+    from amendments_worker.workflows.supabase import evaluation_row
+
+    parsed = EvaluationJSON.model_validate_json(V2_PAYLOAD)
+    row = evaluation_row(build_evaluation(_eme(), parsed))
+    assert row["impatto_finanziario"] == 10.0
+    assert row["alloca_risorse"] is True
+    assert row["importo_stimato_eur"] == 5000000.0
+    assert row["motivazione_finanziaria"] == "stanzia risorse"
+    assert row["rubrica_versione"] == 2

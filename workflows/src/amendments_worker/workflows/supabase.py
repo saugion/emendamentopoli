@@ -94,6 +94,10 @@ def evaluation_row(v: "Evaluation") -> dict:
         "rubrica_versione": v.rubric_version,
         "testo_hash": v.text_hash,
         "copiata_da": v.copied_from,
+        "impatto_finanziario": v.financial_impact,
+        "alloca_risorse": v.allocates_resources,
+        "importo_stimato_eur": v.estimated_amount_eur,
+        "motivazione_finanziaria": v.financial_rationale,
     }
 
 
