@@ -125,10 +125,11 @@ export function estraiFirmatari(
   return { nomi, uri };
 }
 
-/** href dati.senato.it (es. .../senatore/407 o .../29521) -> scheda profilo su senato.it. */
+/** href dati.senato.it (es. .../senatore/407 o .../29521) -> scheda profilo su senato.it ("" se non e' una persona, es. senatore/0 = "Il Relatore"). */
 function profiloSenatore(href: string, legislatura: number): string {
   const m = href.match(/^https?:\/\/dati\.senato\.it\/(?:senatore\/)?(\d+)\/?$/);
   if (!m) return href.replace(/^http:/, "https:");
+  if (/^0+$/.test(m[1])) return "";
   return `https://www.senato.it/leg/${legislatura}/BGT/Schede/Attsen/${m[1].padStart(8, "0")}.htm`;
 }
 
