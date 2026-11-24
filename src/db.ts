@@ -57,6 +57,7 @@ export async function salvaSuSupabase(
     url_testo_xml: e.urlTestoXml,
     data: e.data ?? null,
     testo: e.testo ?? null,
+    firmatari: e.firmatari && e.firmatari.length > 0 ? e.firmatari.join(", ") : null,
   }));
   await rest("/rest/v1/emendamenti?on_conflict=id", {
     method: "POST",

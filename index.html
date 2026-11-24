@@ -159,6 +159,11 @@ main { max-width: 1080px; margin: 0 auto; padding: 20px 20px 30px; }
 .cchip .bar { width: 34px; height: 4px; border-radius: 2px; background: var(--muted); overflow: hidden; }
 .cchip .bar i { display: block; height: 100%; border-radius: 2px; }
 .cchip b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.firme { display: flex; align-items: center; gap: 7px; margin-top: 7px; font-size: 12px; color: var(--muted-fg); }
+.firme svg { flex-shrink: 0; opacity: .8; }
+.firlist { display: flex; flex-wrap: wrap; gap: 6px; }
+.fperson { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--bg); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; }
+.fperson svg { color: #f59e0b; }
 
 .skel { display: flex; gap: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px 18px; position: relative; overflow: hidden; }
 .skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
@@ -386,7 +391,13 @@ function api(path, count) {
   });
 }
 
-var SEL = "id,score_totale,riepilogo,modello,ts,emendamenti!inner(numero,tipo,ddl,data,url_testo),punteggi(criterio,punteggio,motivazione)";
+var HAS_FIRMATARI = false;
+function selList() {
+  return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(numero,tipo,ddl,data,url_testo" + (HAS_FIRMATARI ? ",firmatari" : "") + "),punteggi(criterio,punteggio,motivazione)";
+}
+function selDetail() {
+  return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(id,numero,tipo,ddl,data,testo,url_testo,atto_uri,sede_commissione" + (HAS_FIRMATARI ? ",firmatari" : "") + "),punteggi(criterio,punteggio,motivazione)";
+}
 function orderClause() {
   if (state.sort === "score_asc") return "score_totale.asc.nullslast";
   if (state.sort === "data_desc") return "emendamenti(data).desc.nullslast";
@@ -394,16 +405,18 @@ function orderClause() {
   return "score_totale.desc.nullslast";
 }
 function baseParams() {
-  var p = ["select=" + SEL, "order=" + orderClause(), "limit=" + PAGE, "offset=" + state.items.length];
+  var p = ["select=" + selList(), "order=" + orderClause(), "limit=" + PAGE, "offset=" + state.items.length];
   if (state.minScore > 0) p.push("score_totale=gte." + state.minScore);
   if (state.tipo !== "all") p.push("emendamenti.tipo=eq." + state.tipo);
   return p;
 }
 function searchOrClause(qs, cb) {
   var pat = "*" + qs + "*";
+  var emOr = ["numero.ilike." + pat, "ddl.ilike." + pat, "testo.ilike." + pat];
+  if (HAS_FIRMATARI) emOr.push("firmatari.ilike." + pat);
   Promise.all([
     api("valutazioni?select=id&or=(riepilogo.ilike." + pat + ")&limit=1000"),
-    api("emendamenti?select=id&or=(numero.ilike." + pat + ",ddl.ilike." + pat + ",testo.ilike." + pat + ")&limit=1000")
+    api("emendamenti?select=id&or=(" + emOr.join(",") + ")&limit=1000")
   ]).then(function (rs) {
     var valIds = rs[0].data.map(function (r) { return r.id; });
     var emIds = rs[1].data.map(function (r) { return '"' + String(r.id).replace(/"/g, "") + '"'; });
@@ -578,6 +591,16 @@ function animateGauge(svgEl, score) {
   requestAnimationFrame(function () { requestAnimationFrame(function () { fg.style.strokeDashoffset = off; }); });
 }
 
+function splitFirmatari(e) {
+  return String((e && e.firmatari) || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+}
+function firmeHTML(e) {
+  var f = splitFirmatari(e);
+  if (!f.length) return "";
+  var shown = f.slice(0, 3).join(", ") + (f.length > 3 ? " +" + (f.length - 3) + " altri" : "");
+  return '<div class="firme"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>' + esc(shown) + "</span></div>";
+}
+
 function cardHTML(v, i) {
   var e = v.emendamenti || {};
   var tipo = e.tipo === "G" ? "G" : "E";
@@ -593,7 +616,7 @@ function cardHTML(v, i) {
     gaugeSVG(v.score_totale, 56) +
     '<div class="body"><div class="row1"><div><div class="title"><span class="tbadge ' + tipo + '">' + tipoLbl + "</span>" +
     '<span class="num">' + esc(e.numero || "?") + "</span></div>" +
-    '<div class="meta"><span>' + esc(e.ddl || "atto non indicato") + '</span><span class="sep">·</span><span>' + esc(fmtData(e.data)) + "</span></div></div></div>" +
+    '<div class="meta"><span>' + esc(e.ddl || "atto non indicato") + '</span><span class="sep">·</span><span>' + esc(fmtData(e.data)) + "</span></div>" + firmeHTML(e) + "</div></div>" +
     (v.riepilogo ? '<div class="riep">' + esc(v.riepilogo) + "</div>" : "") +
     (crit ? '<div class="crit">' + crit + "</div>" : "") +
     "</div></article>";
@@ -639,7 +662,7 @@ function openDetail(id) {
   document.body.classList.add("lock");
   els.dBody.innerHTML = '<div style="display:flex;justify-content:center;padding:40px"><span class="spinner"></span></div>';
   els.dClose.focus();
-  api("valutazioni?id=eq." + id + "&select=id,score_totale,riepilogo,modello,ts,emendamenti!inner(id,numero,tipo,ddl,data,testo,url_testo,atto_uri,sede_commissione),punteggi(criterio,punteggio,motivazione)&limit=1")
+  api("valutazioni?id=eq." + id + "&select=" + selDetail() + "&limit=1")
     .then(function (r) {
       if (!r.data.length) throw new Error("Valutazione non trovata");
       renderDetail(r.data[0]);
@@ -670,10 +693,18 @@ function renderDetail(v) {
       '<span class="cval" style="color:' + col + '">' + esc(fmtScore(p.punteggio)) + "</span>" +
       (p.motivazione ? '<span class="cmot">' + esc(p.motivazione) + "</span>" : "") + "</div>";
   }).join("");
+  var f = splitFirmatari(e);
+  var firPanel = f.length
+    ? '<div class="panel"><h3>Firmatari (' + f.length + ")</h3><div class='firlist'>" +
+      f.map(function (n, i) {
+        return "<span class='fperson'>" + (i === 0 ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" title="primo firmatario"><path d="m12 2 2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8Z"/></svg>' : "") + esc(n) + "</span>";
+      }).join("") + "</div></div>"
+    : "";
   els.dBody.innerHTML =
     '<div class="panel"><h3>Valutazione IA</h3><div class="riep-full">' + esc(v.riepilogo || "Nessun riepilogo.") + "</div>" +
     '<div class="dmeta" style="margin-top:12px"><span>score composito: <b>' + esc(fmtScore(v.score_totale)) + " / 10</b></span>" +
     (v.ts ? "<span>valutato il " + esc(new Date(v.ts).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })) + "</span>" : "") + "</div></div>" +
+    firPanel +
     (rows ? '<div class="panel"><h3>Criteri</h3>' + rows + "</div>" : "") +
     '<div class="panel"><h3>Testo dell\u2019emendamento</h3>' +
     (e.testo ? '<pre class="testo">' + esc(e.testo) + "</pre>" : '<p style="color:var(--muted-fg);font-size:13.5px">Testo non disponibile.</p>') + "</div>";
@@ -871,11 +902,16 @@ var io = new IntersectionObserver(function (entries) {
 }, { rootMargin: "600px 0px" });
 io.observe(els.sentinel);
 
-readHash();
-syncChipGroups();
-buildSeg();
-resetAndLoad();
-loadStats();
+api("emendamenti?select=firmatari&limit=1")
+  .catch(function () { return null; })
+  .then(function (r) {
+    HAS_FIRMATARI = !!r;
+    readHash();
+    syncChipGroups();
+    buildSeg();
+    resetAndLoad();
+    loadStats();
+  });
 
 })();
 </script>
