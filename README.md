@@ -2,22 +2,31 @@
 
 Valutazione IA dell'utilita' pubblica degli emendamenti parlamentari italiani.
 
-**Stato**: prototipo (solo Senato; Camera in roadmap).
+**Stato**: prototipo (Senato e Camera dei deputati, legislatura XIX).
 
 ## Come funziona
 
-1. **Ingestione**: scarica i metadati degli emendamenti dall'endpoint SPARQL
-   di [dati.senato.it](https://dati.senato.it) (Open Data, licenza CC BY 3.0).
-2. **Testi**: recupera il testo Akoma Ntoso di ogni emendamento da senato.it
-   e ne estrae data di presentazione, atto di riferimento e testo plain-text.
-3. **Valutazione**: un LLM (Mistral) valuta ogni emendamento su una rubrica
+1. **Ingestione Senato**: metadati degli emendamenti e ordini del giorno dall'endpoint SPARQL
+   di [dati.senato.it](https://dati.senato.it) (Open Data, licenza CC BY 3.0); il testo Akoma Ntoso
+   di ogni atto si scarica da senato.it (data di presentazione, ddl, testo, firmatari).
+2. **Ingestione Camera**: metadati degli ordini del giorno e dei progetti di legge dall'endpoint SPARQL
+   di [dati.camera.it](https://dati.camera.it) (licenza CC BY-SA 4.0); lo SPARQL fornisce solo i metadati,
+   il testo (con tutte le versioni, firmatari, parere del Governo ed esito) si legge per singolo atto
+   dalle schede di documenti.camera.it. Gli emendamenti della Camera non sono nello SPARQL: si leggono
+   dagli elenchi e dalle schede delle proposte emendative su documenti.camera.it.
+3. **Filtro di rilevanza finanziaria**: tutti i metadati vengono importati, ma l'LLM valuta solo gli atti
+   che incidono sull'allocazione di denaro pubblico (regole lessicali + natura dell'atto: decreti-legge,
+   leggi di bilancio, assegnazione alla V Commissione Bilancio).
+4. **Versioni**: ogni riformulazione ("testo 2", "nuova formulazione", testo modificato in seduta) e' una
+   riga separata; solo la versione corrente e' mostrata.
+5. **Valutazione**: un LLM (Mistral) valuta ogni emendamento su una rubrica
    di interesse pubblico con punteggi 0-10 e motivazioni obbligatorie:
    - trasparenza (peso 0.3) - trasparenza democratica, legalita', accountability
    - salute (0.25) - impatto su salute pubblica
    - ambiente (0.25) - impatto su ambiente e clima
    - concretezza (0.2) - efficacia tecnica, non genericita'
-4. **Score composito**: media pesata dei criteri.
-5. **Persistenza** (opzionale): salva emendamenti, valutazioni e punteggi su
+6. **Score composito**: media pesata dei criteri.
+7. **Persistenza** (opzionale): salva emendamenti, valutazioni e punteggi su
    Supabase via API REST.
 
 Senza `MISTRAL_API_KEY` gira in modalita' euristica (lessicale), solo sviluppo.
@@ -39,16 +48,14 @@ Zero dipendenze runtime: richiede Node 22+ (TypeScript nativo).
 ## Setup Supabase
 
 1. Crea un progetto su [supabase.com](https://supabase.com).
-2. Esegui in ordine `supabase/migrations/0001_schema.sql`,
-   `supabase/migrations/0002_firmatari.sql` e
-   `supabase/migrations/0003_firmatari_uri.sql` nel SQL Editor
-   (oppure `npx supabase db push` con il repo collegato).
-   La 0002 aggiunge la colonna `firmatari` (cognomi dei senatori firmatari)
-   con indice trigram per la ricerca sui nomi; senza di essa la web app
-   funziona comunque (i nomi vengono mostrati solo dopo re-ingest).
-   La 0003 aggiunge `firmatari_uri` (URL della scheda profilo su senato.it,
-   allineati a `firmatari`), usato per il link al profilo di ciascun
-   firmatario nel pannello dettaglio.
+2. Esegui in ordine nel SQL Editor (oppure `npx supabase db push` con il repo collegato):
+   - `supabase/migrations/0001_schema.sql` - schema iniziale (`emendamenti`, `valutazioni`, `punteggi`)
+   - `supabase/migrations/0002_firmatari.sql` - colonna `firmatari` (cognomi dei senatori firmatari) con indice trigram per la ricerca sui nomi; senza di essa la web app funziona comunque (i nomi vengono mostrati solo dopo re-ingest)
+   - `supabase/migrations/0003_firmatari_uri.sql` - colonna `firmatari_uri` (URL della scheda profilo su senato.it, allineati a `firmatari`), usato per il link al profilo di ciascun firmatario nel pannello dettaglio
+   - `supabase/migrations/0004_hardening.sql` - chiavi naturali, versioni (`corrente`) e unicita' delle valutazioni
+   - `supabase/migrations/0005_camera_odg_atti.sql` - colonne Camera, tabelle `atti` e `ingest_cursori`
+   - `supabase/migrations/0006_rilevanza.sql` - filtro di rilevanza e campi finanziari della rubrica v2
+   - `supabase/migrations/0007_camera_emendamenti.sql` - stato degli elenchi emendamenti della Camera (GET condizionale)
 3. Imposta le variabili d'ambiente `SUPABASE_URL` e `SUPABASE_KEY`
    (publishable/anon key; vedi `.env.example`).
 
@@ -76,13 +83,17 @@ prototipo: da raffinare prima di un uso reale in produzione.
 
 - [x] Persistenza (Supabase/PostgreSQL)
 - [ ] Coda e rate limiting per i batch (BullMQ)
-- [ ] Ingestione Camera (scraping fascicoli; nessun dataset equivalente)
+- [x] Ingestione Camera: ODG e progetti di legge da dati.camera.it (SPARQL, solo metadati) + testi per singolo atto da documenti.camera.it; emendamenti dagli elenchi di documenti.camera.it
 - [ ] API REST pubblica (Fastify) + web app Next.js
 - [ ] Audit: campioni rivalutati con piu' modelli, feedback utenti
 - [ ] Disclaimer e pesi pubblicati (mitigazione del bias politico)
 
 ## Note legali
 
-Dati Senato: CC BY 3.0, citare la fonte "Senato della Repubblica - dati.senato.it".
+Dati Senato: CC BY 3.0, fonte "Senato della Repubblica - dati.senato.it".
+Dati Camera: CC BY-SA 4.0, fonte "Camera dei deputati - dati.camera.it"; testi da documenti.camera.it.
+Le valutazioni pubblicate (score, punteggi, motivazioni, indicatori finanziari) sono opera derivata e
+sono rilasciate con licenza CC BY-SA 4.0.
 Gli score sono valutazioni algoritmiche di supporto, non giudizi istituzionali.
-Verificare i termini per lo scraping dei contenuti di camera.it prima di estendere.
+Accesso ai siti istituzionali: user-agent `emendamentopoli-research/0.1`, al massimo 1 richiesta al secondo
+per host, nel rispetto di robots.txt.
