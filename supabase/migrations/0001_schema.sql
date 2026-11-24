@@ -1,17 +1,17 @@
--- Emendamentopoli: schema Supabase
--- Eseguire nel SQL Editor di Supabase (o: npx supabase db push)
+-- Emendamentopoli: Supabase schema
+-- Run in the Supabase SQL Editor (or: npx supabase db push)
 
 create table if not exists emendamenti (
-  id text primary key,                -- URI dati.senato.it
+  id text primary key,                -- dati.senato.it URI
   legislatura int not null,
-  numero text,                        -- es. "1.30"
-  tipo text,                         -- E = emendamento, G = ordine del giorno
+  numero text,                        -- e.g. "1.30"
+  tipo text,                         -- E = amendment, G = order of the day
   sede_commissione boolean,
-  atto_uri text,                     -- oggetto della trattazione (ddl)
+  atto_uri text,                     -- item under discussion (bill)
   ddl text,
   url_testo text,
   url_testo_xml text,
-  data date,                        -- data di presentazione
+  data date,                         -- submission date
   testo text,
   created_at timestamptz not null default now()
 );
@@ -21,7 +21,7 @@ create table if not exists valutazioni (
   emendamento_id text not null references emendamenti(id) on delete cascade,
   score_totale numeric(4,2),
   riepilogo text,
-  modello text,                      -- modello LLM usato (o "euristica")
+  modello text,                      -- LLM model used (or "heuristic")
   ts timestamptz,
   created_at timestamptz not null default now()
 );
@@ -38,8 +38,8 @@ create index if not exists idx_valutazioni_emendamento on valutazioni(emendament
 create index if not exists idx_punteggi_valutazione on punteggi(valutazione_id);
 create index if not exists idx_emendamenti_data on emendamenti(data);
 
--- RLS: prototipo pubblico, lettura/scrittura anonima.
--- DA RAFFINARE PRIMA DI UNA PRODUZIONE REALE.
+-- RLS: public prototype, anonymous read/write.
+-- REFINE BEFORE ANY REAL PRODUCTION USE.
 alter table emendamenti enable row level security;
 alter table valutazioni enable row level security;
 alter table punteggi enable row level security;

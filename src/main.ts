@@ -1,14 +1,14 @@
-// Demo: scarica emendamenti dal Senato, li ordina cronologicamente
-// e li valuta con la rubrica di interesse pubblico.
+// Demo: downloads amendments from the Senate, sorts them chronologically
+// and evaluates them against the public-interest rubric.
 //
-// Uso:
+// Usage:
 //   MISTRAL_API_KEY=... npm run demo -- --limit 5
 //   node --experimental-strip-types src/main.ts --limit 5 --offset 50
 
-import { fetchEmendamenti, arricchisciConTesto } from "./senato.ts";
-import { valuta } from "./evaluate.ts";
-import { supabaseConfigurato, salvaSuSupabase } from "./db.ts";
-import type { Emendamento, Valutazione } from "./types.ts";
+import { fetchAmendments, enrichWithContext } from "./senate.ts";
+import { evaluate } from "./evaluate.ts";
+import { isSupabaseConfigured, saveToSupabase } from "./db.ts";
+import type { Amendment, Evaluation } from "./types.ts";
 
 const args = process.argv.slice(2);
 const limitIdx = args.indexOf("--limit");
@@ -17,48 +17,48 @@ const offsetIdx = args.indexOf("--offset");
 const offset = offsetIdx >= 0 ? parseInt(args[offsetIdx + 1] ?? "0", 10) : 0;
 
 async function main() {
-  console.log(`\u2192 Scarico metadati di ${limit} emendamenti (Senato, leg. XIX)...`);
-  const base = await fetchEmendamenti(19, limit, offset);
+  console.log(`\u2192 Downloading metadata for ${limit} amendments (Senate, leg. XIX)...`);
+  const base = await fetchAmendments(19, limit, offset);
 
-  console.log("\u2192 Recupero testi Akoma Ntoso...");
-  const arricchiti = (await Promise.allSettled(base.map(arricchisciConTesto)))
-    .filter((r): r is PromiseFulfilledResult<Emendamento> => r.status === "fulfilled")
+  console.log("\u2192 Fetching Akoma Ntoso texts...");
+  const enriched = (await Promise.allSettled(base.map(enrichWithContext)))
+    .filter((r): r is PromiseFulfilledResult<Amendment> => r.status === "fulfilled")
     .map((r) => r.value);
 
-  // ordinamento cronologico (data di presentazione)
-  arricchiti.sort((a, b) => (a.data ?? "").localeCompare(b.data ?? ""));
+  // chronological order (submission date)
+  enriched.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
 
-  console.log(`\u2192 Valuto ${arricchiti.length} emendamenti...`);
-  const valutazioni: Valutazione[] = [];
-  for (const eme of arricchiti) {
-    const v = await valuta(eme);
-    valutazioni.push(v);
+  console.log(`\u2192 Evaluating ${enriched.length} amendments...`);
+  const evaluations: Evaluation[] = [];
+  for (const eme of enriched) {
+    const v = await evaluate(eme);
+    evaluations.push(v);
     console.log(
-      `\n\u2501\u2501\u2501 ${eme.tipo === "G" ? "O.d.G." : "Emendamento"} ${eme.numero} \u2014 ${eme.ddl ?? "?"} \u2014 ${eme.data ?? "n/d"} (${eme.sedeCommissione ? "Commissione" : "Assemblea"})`,
+      `\n\u2501\u2501\u2501 ${eme.type === "G" ? "Order of the day" : "Amendment"} ${eme.number} \u2014 ${eme.bill ?? "?"} \u2014 ${eme.date ?? "n/a"} (${eme.committeeSeat ? "Committee" : "Plenary"})`,
     );
-    console.log(`    Score totale: ${v.scoreTotale}/10 (modello: ${v.modello})`);
-    for (const p of v.punteggi) {
-      console.log(`    \u2022 ${p.criterio}: ${p.punteggio}/10 \u2014 ${p.motivazione}`);
+    console.log(`    Total score: ${v.totalScore}/10 (model: ${v.model})`);
+    for (const s of v.scores) {
+      console.log(`    \u2022 ${s.criterion}: ${s.score}/10 \u2014 ${s.rationale}`);
     }
-    console.log(`    Riepilogo: ${v.riepilogo}`);
-    console.log(`    Testo: ${(eme.testo ?? "").slice(0, 280)}${(eme.testo ?? "").length > 280 ? "..." : ""}`);
-    if (eme.firmatari && eme.firmatari.length > 0) {
-      const f = eme.firmatari;
-      console.log(`    Firmatari (${f.length}): ${f.slice(0, 5).join(", ")}${f.length > 5 ? ", ..." : ""}`);
+    console.log(`    Summary: ${v.summary}`);
+    console.log(`    Text: ${(eme.text ?? "").slice(0, 280)}${(eme.text ?? "").length > 280 ? "..." : ""}`);
+    if (eme.signatories && eme.signatories.length > 0) {
+      const f = eme.signatories;
+      console.log(`    Signatories (${f.length}): ${f.slice(0, 5).join(", ")}${f.length > 5 ? ", ..." : ""}`);
     }
-    console.log(`    Fonte: ${eme.urlTesto}`);
+    console.log(`    Source: ${eme.textUrl}`);
   }
 
-  if (supabaseConfigurato()) {
-    console.log("\u2192 Salvo su Supabase...");
-    await salvaSuSupabase(arricchiti, valutazioni);
-    console.log("\u2192 Salvataggio completato.");
+  if (isSupabaseConfigured()) {
+    console.log("\u2192 Saving to Supabase...");
+    await saveToSupabase(enriched, evaluations);
+    console.log("\u2192 Save completed.");
   } else {
-    console.log("(Imposta SUPABASE_URL e SUPABASE_KEY per salvare su Supabase)");
+    console.log("(Set SUPABASE_URL and SUPABASE_KEY to save to Supabase)");
   }
 }
 
 main().catch((e) => {
-  console.error("Errore:", e.message);
+  console.error("Error:", e.message);
   process.exit(1);
 });

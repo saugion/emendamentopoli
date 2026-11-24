@@ -1,24 +1,24 @@
-name: Ingest emendamenti (manuale)
+name: Ingest amendments (manual)
 
 on:
   workflow_dispatch:
     inputs:
-      data_inizio:
-        description: "Inizio del periodo da ingerire (YYYY-MM-DD, es. 2026-11-01)"
+      start_date:
+        description: "Start of the period to ingest (YYYY-MM-DD, e.g. 2026-11-01)"
         required: true
         type: string
-      data_fine:
-        description: "Fine del periodo (YYYY-MM-DD, inclusivo); vuoto = oggi (Europe/Rome)"
+      end_date:
+        description: "End of the period (YYYY-MM-DD, inclusive); empty = today (Europe/Rome)"
         required: false
         type: string
         default: ""
-      legislatura:
-        description: "Legislatura del Senato"
+      legislature:
+        description: "Senate legislature"
         required: false
         type: string
         default: "19"
-      limite:
-        description: "Emendamenti recenti da scandire al massimo (deve coprire tutto il periodo; max 20000)"
+      limit:
+        description: "Recent amendments to scan at most (must cover the whole period; max 20000)"
         required: false
         type: string
         default: "20000"
@@ -31,54 +31,54 @@ jobs:
     timeout-minutes: 180
     env:
       MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-      DATA_INIZIO: ${{ inputs.data_inizio }}
-      DATA_FINE_INPUT: ${{ inputs.data_fine }}
-      LEGISLATURA: ${{ inputs.legislatura }}
-      LIMITE: ${{ inputs.limite }}
+      START_DATE: ${{ inputs.start_date }}
+      END_DATE_INPUT: ${{ inputs.end_date }}
+      LEGISLATURE: ${{ inputs.legislature }}
+      LIMIT: ${{ inputs.limit }}
       WORKFLOW_NAME: emendamenti-giornalieri
       DEPLOYMENT_NAME: emendamentopoli
       API_BASE: https://api.mistral.ai/v1
     steps:
-      - name: Valida gli input
+      - name: Validate inputs
         run: |
           set -euo pipefail
-          if [[ -z "$DATA_INIZIO" ]]; then
-            echo "data_inizio è obbligatoria" >&2
+          if [[ -z "$START_DATE" ]]; then
+            echo "start_date is required" >&2
             exit 1
           fi
-          for v in DATA_INIZIO DATA_FINE_INPUT; do
+          for v in START_DATE END_DATE_INPUT; do
             val="${!v}"
             if [[ -n "$val" && ! "$val" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-              echo "$v deve essere nel formato YYYY-MM-DD (valore: $val)" >&2
+              echo "$v must be in YYYY-MM-DD format (value: $val)" >&2
               exit 1
             fi
           done
-          for v in LEGISLATURA LIMITE; do
+          for v in LEGISLATURE LIMIT; do
             if ! [[ "${!v}" =~ ^[0-9]+$ ]]; then
-              echo "$v deve essere un numero intero" >&2
+              echo "$v must be an integer" >&2
               exit 1
             fi
           done
           if [[ -z "$MISTRAL_API_KEY" ]]; then
-            echo "Secret MISTRAL_API_KEY mancante (Settings > Secrets and variables > Actions)" >&2
+            echo "Missing MISTRAL_API_KEY secret (Settings > Secrets and variables > Actions)" >&2
             exit 1
           fi
 
-      - name: Avvia l'esecuzione del workflow ${{ env.WORKFLOW_NAME }}
+      - name: Start workflow execution ${{ env.WORKFLOW_NAME }}
         id: start
         run: |
           set -euo pipefail
-          DATA_FINE="$DATA_FINE_INPUT"
-          if [[ -z "$DATA_FINE" ]]; then
-            DATA_FINE="$(TZ=Europe/Rome date +%F)"
+          END_DATE="$END_DATE_INPUT"
+          if [[ -z "$END_DATE" ]]; then
+            END_DATE="$(TZ=Europe/Rome date +%F)"
           fi
-          echo "Periodo ingest: $DATA_INIZIO .. $DATA_FINE (legislatura $LEGISLATURA, limite $LIMITE, deployment $DEPLOYMENT_NAME)"
+          echo "Ingest period: $START_DATE .. $END_DATE (legislature $LEGISLATURE, limit $LIMIT, deployment $DEPLOYMENT_NAME)"
           PAYLOAD="$(jq -n \
-            --arg data "$DATA_INIZIO" \
-            --arg fine "$DATA_FINE" \
-            --argjson legislatura "$LEGISLATURA" \
-            --argjson limite "$LIMITE" \
-            '{input: {data: $data, data_fine: $fine, legislatura: $legislatura, limite: $limite}, wait_for_result: false}')"
+            --arg date "$START_DATE" \
+            --arg end_date "$END_DATE" \
+            --argjson legislature "$LEGISLATURE" \
+            --argjson limit "$LIMIT" \
+            '{input: {date: $date, end_date: $end_date, legislature: $legislature, limit: $limit}, wait_for_result: false}')"
           RESP="$(curl -sS -X POST "$API_BASE/workflows/$WORKFLOW_NAME/execute" \
             -H "Authorization: Bearer $MISTRAL_API_KEY" \
             -H "Content-Type: application/json" \
@@ -86,13 +86,13 @@ jobs:
           echo "$RESP" | jq .
           EXEC_ID="$(echo "$RESP" | jq -r '.execution_id // empty')"
           if [[ -z "$EXEC_ID" ]]; then
-            echo "Nessuna execution_id nella risposta dell'API" >&2
+            echo "No execution_id in the API response" >&2
             exit 1
           fi
           echo "execution_id=$EXEC_ID" >> "$GITHUB_OUTPUT"
-          echo "Esecuzione avviata: $EXEC_ID"
+          echo "Execution started: $EXEC_ID"
 
-      - name: Attendi il completamento
+      - name: Wait for completion
         run: |
           set -euo pipefail
           EXEC_ID="${{ steps.start.outputs.execution_id }}"
@@ -113,5 +113,5 @@ jobs:
             esac
             sleep 30
           done
-          echo "Timeout: esecuzione ancora non conclusa dopo ~170 minuti" >&2
+          echo "Timeout: execution still not finished after ~170 minutes" >&2
           exit 1

@@ -1,14 +1,14 @@
-// Persistenza su Supabase tramite API REST (zero dipendenze extra).
-// Configurazione via variabili d'ambiente:
+// Persistence on Supabase via REST API (zero extra dependencies).
+// Configuration via environment variables:
 //   SUPABASE_URL=https://<project>.supabase.co
 //   SUPABASE_KEY=sb_publishable_...  (anon/publishable key)
 
-import type { Emendamento, Valutazione } from "./types.ts";
+import type { Amendment, Evaluation } from "./types.ts";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-export function supabaseConfigurato(): boolean {
+export function isSupabaseConfigured(): boolean {
   return Boolean(SUPABASE_URL && SUPABASE_KEY);
 }
 
@@ -33,46 +33,46 @@ async function rest(
     } catch {
       detail = await res.text();
     }
-    throw new Error(`Supabase ${res.status} su ${path}: ${detail}`);
+    throw new Error(`Supabase ${res.status} on ${path}: ${detail}`);
   }
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 }
 
-/** Salva (upsert) gli emendamenti e le relative valutazioni. */
-export async function salvaSuSupabase(
-  emendamenti: Emendamento[],
-  valutazioni: Valutazione[],
+/** Saves (upserts) amendments and their evaluations. */
+export async function saveToSupabase(
+  amendments: Amendment[],
+  evaluations: Evaluation[],
 ): Promise<void> {
-  // 1. upsert degli emendamenti
-  const righe = emendamenti.map((e) => ({
-    id: e.id,
-    legislatura: e.legislatura,
-    numero: e.numero,
-    tipo: e.tipo,
-    sede_commissione: e.sedeCommissione,
-    atto_uri: e.attoUri,
-    ddl: e.ddl ?? null,
-    url_testo: e.urlTesto,
-    url_testo_xml: e.urlTestoXml,
-    data: e.data ?? null,
-    testo: e.testo ?? null,
-    firmatari: e.firmatari && e.firmatari.length > 0 ? e.firmatari.join(", ") : null,
+  // 1. upsert amendments
+  const rows = amendments.map((a) => ({
+    id: a.id,
+    legislatura: a.legislature,
+    numero: a.number,
+    tipo: a.type,
+    sede_commissione: a.committeeSeat,
+    atto_uri: a.actUri,
+    ddl: a.bill ?? null,
+    url_testo: a.textUrl,
+    url_testo_xml: a.textXmlUrl,
+    data: a.date ?? null,
+    testo: a.text ?? null,
+    firmatari: a.signatories && a.signatories.length > 0 ? a.signatories.join(", ") : null,
     firmatari_uri:
-      e.firmatari_uri && e.firmatari_uri.length > 0 ? e.firmatari_uri.join(", ") : null,
+      a.signatoryUris && a.signatoryUris.length > 0 ? a.signatoryUris.join(", ") : null,
   }));
   await rest("/rest/v1/emendamenti?on_conflict=id", {
     method: "POST",
     prefer: "resolution=merge-duplicates",
-    body: righe,
+    body: rows,
   });
 
-  // 2. una valutazione per emendamento valutato
-  const valRows = valutazioni.map((v) => ({
-    emendamento_id: v.emendamentoId,
-    score_totale: v.scoreTotale,
-    riepilogo: v.riepilogo,
-    modello: v.modello,
+  // 2. one evaluation per evaluated amendment
+  const valRows = evaluations.map((v) => ({
+    emendamento_id: v.amendmentId,
+    score_totale: v.totalScore,
+    riepilogo: v.summary,
+    modello: v.model,
     ts: v.timestamp,
   }));
   const inserted = (await rest("/rest/v1/valutazioni", {
@@ -81,16 +81,16 @@ export async function salvaSuSupabase(
     body: valRows,
   })) as Array<{ id: number }>;
 
-  // 3. punteggi dettagliati per criterio
-  const punteggiRows = valutazioni.flatMap((v, i) =>
-    v.punteggi.map((p) => ({
+  // 3. detailed scores per criterion
+  const scoreRows = evaluations.flatMap((v, i) =>
+    v.scores.map((s) => ({
       valutazione_id: inserted[i].id,
-      criterio: p.criterio,
-      punteggio: p.punteggio,
-      motivazione: p.motivazione,
+      criterio: s.criterion,
+      punteggio: s.score,
+      motivazione: s.rationale,
     })),
   );
-  if (punteggiRows.length > 0) {
-    await rest("/rest/v1/punteggi", { method: "POST", body: punteggiRows });
+  if (scoreRows.length > 0) {
+    await rest("/rest/v1/punteggi", { method: "POST", body: scoreRows });
   }
 }

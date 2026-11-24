@@ -59,7 +59,7 @@ prototipo: da raffinare prima di un uso reale in produzione.
 ## File
 
 - `src/types.ts` - tipi + rubrica e pesi
-- `src/senato.ts` - client SPARQL + parser Akoma Ntoso
+- `src/senate.ts` - client SPARQL + parser Akoma Ntoso
 - `src/evaluate.ts` - valutazione LLM (con fallback euristico)
 - `src/db.ts` - persistenza Supabase (API REST, zero dipendenze)
 - `src/main.ts` - CLI demo
