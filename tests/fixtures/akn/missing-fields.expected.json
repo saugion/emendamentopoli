@@ -3,5 +3,6 @@
   "bill": null,
   "text": null,
   "signatories": [],
-  "signatory_uris": []
+  "signatory_uris": [],
+  "parent_number": null
 }

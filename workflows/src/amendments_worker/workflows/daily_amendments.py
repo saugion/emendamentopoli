@@ -19,6 +19,7 @@ import mistralai.workflows as workflows
 
 from ..sources.senato import (  # re-exported: tests import query_recent_metadata from this module
     SPARQL_ENDPOINT,
+    parent_number_from_numero,
     query_recent_metadata,
     sparql_url,
 )
@@ -161,6 +162,7 @@ async def enrich_amendment(eme: Amendment) -> Amendment:
     eme.text = parsed.text
     eme.signatories = parsed.signatories
     eme.signatory_uris = parsed.signatory_uris
+    eme.numero_padre = parsed.parent_number or parent_number_from_numero(eme.number, eme.type)
     eme.text_hash = testo_hash(eme.text)
     eme.relevant_spending, eme.relevance_reasons = calcola_rilevanza(eme.text, {})
     return eme

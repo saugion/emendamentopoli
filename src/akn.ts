@@ -8,6 +8,7 @@ export interface ParsedAkn {
   text: string | null;      // plain-text body
   signatories: string[];    // senators' names (first = proposer)
   signatoryUris: string[];  // senato.it profile URLs, aligned with signatories ("" if unknown)
+  parentNumber: string | null; // numero dell'emendamento padre (subemendamento "X/N" -> "X")
 }
 
 /** Extracts the submission date: <an:FRBRdate date="..." name="presentazione" /> */
@@ -63,6 +64,33 @@ export function extractSignatories(
   return { names, uris };
 }
 
+/**
+ * Extracts the parent amendment number of a "proposta di modifica" (subemendamento, numero "X/N"):
+ * the preface's <an:affectedDocument> points at an <an:activeRef>/<an:original> whose href is the
+ * parent Emend work URI (.../Emend/<ramo>/<atto>/<sede>/<numero>); fallback: <an:docNumber>
+ * "Proposta di modifica n. X/N".
+ */
+export function extractParentNumber(xml: string): string | null {
+  const refs = new Map<string, string>();
+  for (const m of xml.matchAll(/<(?:an:)?(?:activeRef|original)\b[^>]*>/g)) {
+    const id = / id="([^"]+)"/.exec(m[0])?.[1];
+    const href = / href="([^"]+)"/.exec(m[0])?.[1];
+    if (id && href) refs.set(id, href);
+  }
+  for (const m of xml.matchAll(/<(?:an:)?affectedDocument\b([^>]*)>/g)) {
+    const ref = / href="#([^"]+)"/.exec(m[1])?.[1];
+    const href = ref ? refs.get(ref) : undefined;
+    const em = href ? /\/Emend\/[^/]+\/[^/]+\/[^/]+\/([^/]+)/.exec(href) : null;
+    if (em) return em[1];
+  }
+  for (const m of xml.matchAll(/<(?:an:)?docNumber\b[^>]*>([\s\S]*?)<\/(?:an:)?docNumber>/g)) {
+    const text = decode(m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+    const pm = /proposta di modifica\s+n\.?\s*(\S+)/i.exec(text);
+    if (pm && pm[1].includes("/")) return pm[1].slice(0, pm[1].lastIndexOf("/"));
+  }
+  return null;
+}
+
 /** dati.senato.it href (e.g. .../senatore/407 or .../29521) -> profile page on senato.it ("" if not a person, e.g. senatore/0 = "Il Relatore"). */
 function senatorProfile(href: string, legislature: number): string {
   const m = href.match(/^https?:\/\/dati\.senato\.it\/(?:senatore\/)?(\d+)\/?$/);
@@ -92,5 +120,6 @@ export function parseAkn(xml: string, legislature: number): ParsedAkn {
     text: extractText(xml),
     signatories: s.names,
     signatoryUris: s.uris,
+    parentNumber: extractParentNumber(xml),
   };
 }

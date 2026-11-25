@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<an:akomaNtoso xmlns:an="http://docs.oasis-open.org/legaldocml/ns/akn/3.0/CSD03">
+  <an:amendment contains="originalVersion">
+    <an:meta>
+      <an:identification source="#redattore">
+        <an:FRBRWork>
+          <an:FRBRthis value="http://dati.senato.it/19/Emend/S/1222/C/2.0.1000/14/main"/>
+          <an:FRBRuri value="http://dati.senato.it/19/Emend/S/1222/C/2.0.1000/14"/>
+          <an:FRBRdate date="2026-01-10" name="presentazione"/>
+          <an:FRBRauthor href="#senato"/>
+          <an:componentInfo>
+            <an:componentData id="wcompmain" href="http://dati.senato.it/19/Emend/S/1222/C/2.0.1000/14/main" showAs="emendamento" name="emendamento"/>
+          </an:componentInfo>
+          <an:FRBRcountry value="ita"/>
+          <an:FRBRsubtype value="EMEND"/>
+          <an:FRBRnumber value="2.0.1000/14"/>
+          <an:FRBRname value="Emendamento"/>
+        </an:FRBRWork>
+      </an:identification>
+      <an:references source="#redattore">
+        <an:original id="ro1" href="http://dati.senato.it/19/Emend/S/1222/C/2.0.1000/14/ita@/main" showAs="generation"/>
+        <an:activeRef id="ar1" href="http://dati.senato.it/Ddl/19/1222" showAs="Ddl 1222"/>
+        <an:activeRef id="ar2" href="http://dati.senato.it/19/Emend/S/1222/C/2.0.1000" showAs="Emendamento 2.0.1000"/>
+        <an:TLCPerson id="ID0E5" href="http://dati.senato.it/36383" showAs="Renato Ancorotti"/>
+      </an:references>
+    </an:meta>
+    <an:preface>
+      <an:p>
+        <an:affectedDocument href="#ar2">Emendamento 2.0.1000</an:affectedDocument>
+      </an:p>
+      <an:p>
+        <an:docNumber>Proposta di modifica n. 2.0.1000/14</an:docNumber>
+      </an:p>
+      <an:p>
+        <an:docProponent refersTo="#ID0E5" as="#tipoSenatore">
+          <an:span style="font-variant:small-caps;">Ancorotti</an:span>
+        </an:docProponent>
+      </an:p>
+    </an:preface>
+    <an:amendmentBody>
+      <an:amendmentContent>
+        <an:p>
+          <an:i>All&#039;emendamento 2.0.1000, apportare le seguenti modifiche:</an:i>
+        </an:p>
+      </an:amendmentContent>
+    </an:amendmentBody>
+  </an:amendment>
+</an:akomaNtoso>

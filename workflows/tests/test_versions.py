@@ -132,3 +132,70 @@ def test_camera_riformulazione_marks_previous_non_current():
     assert v2["corrente"] is True and v2["versione"] == 2 and v2["superato_da"] is None
     assert v1["corrente"] is False and v1["versione"] == 1
     assert v1["superato_da"] == "camera:19:odg:9/03076/003#v2"
+
+
+async def test_resolve_parents_sparql_links_subemendamento_to_parent():
+    from amendments_worker.sources.senato import resolve_parents_sparql
+
+    child = _eme(1529264, number="2.0.1000/14", numero_padre="2.0.1000")
+    other = _eme(1529265, number="2.14")  # no padre: no SPARQL call needed for it
+    with respx.mock(assert_all_called=False) as router:
+        route = router.get(url__startswith="https://dati.senato.it/sparql").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "results": {
+                        "bindings": [
+                            {
+                                "eme": {"value": "http://dati.senato.it/emendamento/1529000"},
+                                "number": {"value": "2.0.1000"},
+                            }
+                        ]
+                    }
+                },
+            )
+        )
+        resolved = await resolve_parents_sparql([child, other])
+    assert resolved == 1
+    assert child.emendamento_padre_id == "http://dati.senato.it/emendamento/1529000"
+    assert other.emendamento_padre_id is None
+    assert len(route.calls) == 1
+    req = route.calls[0].request
+    assert req.headers["User-Agent"] == "curl/8.5.0"
+    assert "Authorization" not in req.headers  # no Supabase credential leaks to dati.senato.it
+    from urllib.parse import unquote
+
+    assert 'FILTER(?number IN ("2.0.1000"))' in unquote(str(req.url))
+
+
+async def test_save_senato_amendments_resolves_parent_before_upsert(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_KEY", "test-key")
+    child = _eme(1529264, number="2.0.1000/14", numero_padre="2.0.1000")
+    with respx.mock(assert_all_called=False) as router:
+        router.get(url__startswith="https://dati.senato.it/sparql").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "results": {
+                        "bindings": [
+                            {
+                                "eme": {"value": "http://dati.senato.it/emendamento/1529000"},
+                                "number": {"value": "2.0.1000"},
+                            }
+                        ]
+                    }
+                },
+            )
+        )
+        post_route = router.post(
+            url__regex=r"https://example\.supabase\.co/rest/v1/(emendamenti|rpc/ricalcola_versioni)"
+        ).mock(return_value=httpx.Response(201, json=[]))
+        async with httpx.AsyncClient() as client:
+            total = await save_senato_amendments(client, [child])
+    assert total == 1
+    import json
+
+    upsert_body = json.loads(post_route.calls[0].request.content)
+    assert upsert_body[0]["numero_padre"] == "2.0.1000"
+    assert upsert_body[0]["emendamento_padre_id"] == "http://dati.senato.it/emendamento/1529000"

@@ -60,6 +60,8 @@ export async function saveToSupabase(
     firmatari: a.signatories && a.signatories.length > 0 ? a.signatories.join(", ") : null,
     firmatari_uri:
       a.signatoryUris && a.signatoryUris.length > 0 ? a.signatoryUris.join(", ") : null,
+    numero_padre: a.parentNumber ?? null,
+    emendamento_padre_id: a.parentId ?? null,
   }));
   await rest("/rest/v1/emendamenti?on_conflict=id", {
     method: "POST",
