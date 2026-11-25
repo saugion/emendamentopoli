@@ -230,6 +230,7 @@ async def discover_atto_lists(numeri: list[str], legislature: int) -> DiscoveryR
     found = 0
     errors: list[str] = []
     rows: list[dict] = []
+    seen_urls: set[str] = set()
     async with httpx.AsyncClient(timeout=60.0) as client:
         for numero in numeri:
             try:
@@ -239,9 +240,14 @@ async def discover_atto_lists(numeri: list[str], legislature: int) -> DiscoveryR
                 )
                 page = resp.content.decode("utf-8", errors="replace")
                 for url in extract_list_urls(page):
+                    # the same list URL can be linked from several atto pages of the
+                    # batch: PostgREST rejects a payload with duplicate conflict keys
+                    if url in seen_urls:
+                        continue
                     parts = list_url_parts(url)
                     if parts is None:
                         continue
+                    seen_urls.add(url)
                     atto_numero, sede = parts
                     rows.append(
                         {"url": url, "legislatura": legislature, "atto_numero": atto_numero, "sede": sede}
