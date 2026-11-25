@@ -84,6 +84,8 @@ def amendment_row(a: Amendment) -> dict:
         "testo": a.text,
         "firmatari": ", ".join(a.signatories) if a.signatories else None,
         "firmatari_uri": ", ".join(a.signatory_uris) if a.signatory_uris else None,
+        "numero_padre": a.numero_padre,
+        "emendamento_padre_id": a.emendamento_padre_id,
     }
 
 

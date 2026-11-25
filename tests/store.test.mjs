@@ -45,20 +45,21 @@ test("init probes the signatory columns and search builds the list query", async
     if (url.includes("/rest/v1/emendamenti?")) return jsonResponse([]);
     return jsonResponse([{ id: 1 }], { contentRange: "0-29/123" });
   });
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
   assert.ok(calls[0].url.endsWith("/rest/v1/emendamenti?select=firmatari&limit=1"));
   assert.ok(calls[1].url.endsWith("/rest/v1/emendamenti?select=firmatari_uri&limit=1"));
   assert.ok(calls[2].url.endsWith("/rest/v1/emendamenti?select=camera&limit=1"));
   assert.ok(calls[3].url.endsWith("/rest/v1/emendamenti?select=corrente&limit=1"));
   assert.ok(calls[4].url.endsWith("/rest/v1/valutazioni?select=impatto_finanziario&limit=1"));
+  assert.ok(calls[5].url.endsWith("/rest/v1/emendamenti?select=numero_padre&limit=1"));
 
   const r = await store.search({ q: "", type: "all", minScore: 0, sort: "score_desc", offset: 0, limit: 30 });
   assert.deepEqual(r, { items: [{ id: 1 }], total: 123 });
-  const main = calls[5];
+  const main = calls[6];
   assert.ok(main.url.startsWith("https://x.supabase.co/rest/v1/valutazioni?"));
   assert.ok(main.url.includes("order=score_totale.desc.nullslast"));
   assert.ok(main.url.includes("limit=30&offset=0"));
-  assert.ok(main.url.includes("emendamenti!inner(numero,tipo,ddl,data,url_testo,firmatari,firmatari_uri,camera,esito)"));
+  assert.ok(main.url.includes("emendamenti!inner(numero,tipo,ddl,data,url_testo,firmatari,firmatari_uri,camera,esito,numero_padre)"));
   assert.ok(main.url.includes("emendamenti.corrente=eq.true"));
   assert.equal(main.headers.apikey, "test-key");
   assert.equal(main.headers.Authorization, "Bearer test-key");
@@ -136,6 +137,48 @@ test("detail rejects when the valutazione is missing", async () => {
   await assert.rejects(() => store.detail(999), /Valutazione non trovata/);
 });
 
+test("detail of a subemendamento fetches the parent row (migration 0008)", async () => {
+  const { store, calls } = await makeStore((url) => {
+    if (url.includes("valutazioni?id=eq.42")) {
+      return jsonResponse([{
+        id: 42,
+        emendamenti: { numero: "2.0.1000/14", numero_padre: "2.0.1000", emendamento_padre_id: "http://dati.senato.it/emendamento/1529000" },
+      }]);
+    }
+    if (url.includes("emendamenti?id=eq.http://dati.senato.it/emendamento/1529000")) {
+      return jsonResponse([{ id: "http://dati.senato.it/emendamento/1529000", numero: "2.0.1000", url_testo: "http://www.senato.it/show-doc?tipodoc=Emend&leg=19&id=1529000", ddl: "Ddl 1222" }]);
+    }
+    return okInit();
+  });
+  const row = await store.detail(42);
+  assert.equal(row.emendamenti_padre.numero, "2.0.1000");
+  const det = calls.find((c) => c.url.includes("valutazioni?id=eq.42"));
+  assert.ok(det.url.includes("emendamento_padre_id"));
+  assert.ok(det.url.includes("numero_padre"));
+  const par = calls.find((c) => c.url.includes("emendamenti?id=eq.http://dati.senato.it/emendamento/1529000"));
+  assert.ok(par.url.includes("select=id,numero,url_testo,ddl&limit=1"));
+});
+
+test("without migration 0008 the parent columns are omitted and no parent is fetched", async () => {
+  mockFetch((url) =>
+    url.includes("select=numero_padre")
+      ? jsonResponse("nope", { status: 400 })
+      : url.includes("valutazioni?id=eq.42")
+        ? jsonResponse([{ id: 42, emendamenti: { numero: "2.0.1000/14" } }])
+        : okInit()
+  );
+  const store = createStore(CFG);
+  const flags = await store.init();
+  assert.equal(flags.parent, false);
+  const calls = [];
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => { calls.push(String(url)); return origFetch(url, opts); };
+  const row = await store.detail(42);
+  assert.equal(row.emendamenti_padre, undefined);
+  assert.ok(!calls[calls.length - 1].includes("emendamento_padre_id"));
+  assert.ok(!calls.some((u) => u.includes("emendamenti?id=eq.")));
+});
+
 test("stats aggregates the five count queries", async () => {
   const { store, calls } = await makeStore((url) => {
     if (url.includes("/rest/v1/emendamenti?")) return okInit();
@@ -178,7 +221,7 @@ test("without migrations 0004-0006 the queries degrade gracefully", async () => 
   );
   const store = createStore(CFG);
   const flags = await store.init();
-  assert.deepEqual(flags, { signatories: true, signatoryUris: true, chamber: false, corrente: false, finance: false });
+  assert.deepEqual(flags, { signatories: true, signatoryUris: true, chamber: false, corrente: false, finance: false, parent: true });
   const calls = [];
   globalThis.fetch = async (url) => {
     calls.push(String(url));

@@ -15,6 +15,7 @@ export function createStore(config) {
   var hasChamber = false;   // migration 0005 (camera, esito)
   var hasCorrente = false;  // migration 0004 (versions)
   var hasFinance = false;   // migration 0006 (impatto_finanziario)
+  var hasParent = false;    // migration 0008 (numero_padre, emendamento_padre_id)
 
   function api(path, count) {
     var h = { apikey: key, Authorization: "Bearer " + key };
@@ -36,12 +37,12 @@ export function createStore(config) {
     });
   }
 
-  function emExtra() { return (hasSignatories ? ",firmatari" : "") + (hasSignatoryUris ? ",firmatari_uri" : "") + (hasChamber ? ",camera,esito" : ""); }
+  function emExtra() { return (hasSignatories ? ",firmatari" : "") + (hasSignatoryUris ? ",firmatari_uri" : "") + (hasChamber ? ",camera,esito" : "") + (hasParent ? ",numero_padre" : ""); }
   function selList() {
     return "id,score_totale,riepilogo,modello,ts,emendamenti!inner(numero,tipo,ddl,data,url_testo" + emExtra() + "),punteggi(criterio,punteggio,motivazione)";
   }
   function selDetail() {
-    return "id,score_totale,riepilogo,modello,ts" + (hasFinance ? ",impatto_finanziario,alloca_risorse,importo_stimato_eur,motivazione_finanziaria" : "") + ",emendamenti!inner(id,numero,tipo,ddl,data,testo,url_testo,atto_uri,sede_commissione" + emExtra() + "),punteggi(criterio,punteggio,motivazione)";
+    return "id,score_totale,riepilogo,modello,ts" + (hasFinance ? ",impatto_finanziario,alloca_risorse,importo_stimato_eur,motivazione_finanziaria" : "") + ",emendamenti!inner(id,numero,tipo,ddl,data,testo,url_testo,atto_uri,sede_commissione" + (hasParent ? ",emendamento_padre_id" : "") + emExtra() + "),punteggi(criterio,punteggio,motivazione)";
   }
   function orderClause(sort) {
     if (sort === "score_asc") return "score_totale.asc.nullslast";
@@ -82,19 +83,22 @@ export function createStore(config) {
         api("emendamenti?select=firmatari_uri&limit=1").catch(function () { return null; }),
         api("emendamenti?select=camera&limit=1").catch(function () { return null; }),
         api("emendamenti?select=corrente&limit=1").catch(function () { return null; }),
-        api("valutazioni?select=impatto_finanziario&limit=1").catch(function () { return null; })
+        api("valutazioni?select=impatto_finanziario&limit=1").catch(function () { return null; }),
+        api("emendamenti?select=numero_padre&limit=1").catch(function () { return null; })
       ]).then(function (rs) {
         hasSignatories = !!rs[0];
         hasSignatoryUris = !!rs[1];
         hasChamber = !!rs[2];
         hasCorrente = !!rs[3];
         hasFinance = !!rs[4];
+        hasParent = !!rs[5];
         return {
           signatories: hasSignatories,
           signatoryUris: hasSignatoryUris,
           chamber: hasChamber,
           corrente: hasCorrente,
           finance: hasFinance,
+          parent: hasParent,
         };
       });
     },
@@ -124,7 +128,14 @@ export function createStore(config) {
     detail: function (id) {
       return api("valutazioni?id=eq." + id + "&select=" + selDetail() + "&limit=1").then(function (r) {
         if (!r.data.length) throw new Error("Valutazione non trovata");
-        return r.data[0];
+        var row = r.data[0];
+        var pid = row.emendamenti && row.emendamenti.emendamento_padre_id;
+        if (!hasParent || !pid) return row;
+        // risali al padre: fetch the parent emendamento row (numero + link alla scheda senato.it)
+        return api("emendamenti?id=eq." + pid + "&select=id,numero,url_testo,ddl&limit=1").then(function (pr) {
+          if (pr.data.length) row.emendamenti_padre = pr.data[0];
+          return row;
+        }).catch(function () { return row; });
       });
     },
 

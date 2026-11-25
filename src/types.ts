@@ -15,6 +15,8 @@ export interface Amendment {
   bill?: string;        // e.g. "Ddl 391"
   signatories?: string[];    // senators' surnames (first = proposer)
   signatoryUris?: string[];  // senato.it profile URLs, aligned with signatories ("" if unknown)
+  parentNumber?: string;     // numero dell'emendamento padre (subemendamento "X/N" -> "X")
+  parentId?: string;         // id (dati.senato.it URI) dell'emendamento padre, risolto via SPARQL
 }
 
 export interface Score {

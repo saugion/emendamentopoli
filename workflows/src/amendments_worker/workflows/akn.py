@@ -12,8 +12,10 @@ from ..sources.senato import (  # re-exported: tests import these names from thi
     decode_entities,
     extract_bill,
     extract_date,
+    extract_parent_number,
     extract_signatories,
     extract_text,
+    parent_number_from_numero,
     parse,
     senator_profile,
 )
@@ -23,8 +25,10 @@ __all__ = [
     "decode_entities",
     "extract_bill",
     "extract_date",
+    "extract_parent_number",
     "extract_signatories",
     "extract_text",
+    "parent_number_from_numero",
     "parse",
     "senator_profile",
 ]

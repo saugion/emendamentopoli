@@ -31,6 +31,14 @@ async function sparqlSelect(query: string): Promise<Record<string, string>[]> {
   );
 }
 
+/** Numero dell'emendamento padre da "X/N" (subemendamento / proposta di modifica); undefined per gli altri.
+ * Gli o.d.g. (tipo G) hanno numeri con "/" nativi (G/912/1/5), quindi non sono subemendamenti. */
+export function parentNumberFromNumber(number: string, type: string): string | undefined {
+  if (type === "G") return undefined;
+  const i = number.lastIndexOf("/");
+  return i > 0 ? number.slice(0, i) : undefined;
+}
+
 /** Downloads amendment metadata for a legislature (XIX by default). */
 export async function fetchAmendments(
   legislature = 19,
@@ -59,7 +67,41 @@ OFFSET ${offset} LIMIT ${limit}`;
     actUri: r.act,
     textUrl: r.textUrl,
     textXmlUrl: r.textXmlUrl,
+    parentNumber: parentNumberFromNumber(r.number, r.type),
   }));
+}
+
+/** Resolves parentId of subemendamenti (proposte di modifica) via SPARQL: the parent is the
+ * emendamento of the same atto + sede with numero = parentNumber. One query per (legislature, atto, sede). */
+export async function resolveParentIds(amendments: Amendment[]): Promise<void> {
+  const groups = new Map<string, { legislature: number; act: string; committeeSeat: boolean; items: Amendment[] }>();
+  for (const a of amendments) {
+    if (!a.parentNumber || a.parentId) continue;
+    const key = `${a.legislature}|${a.actUri}|${a.committeeSeat}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = { legislature: a.legislature, act: a.actUri, committeeSeat: a.committeeSeat, items: [] };
+      groups.set(key, g);
+    }
+    g.items.push(a);
+  }
+  for (const g of groups.values()) {
+    const numbers = [...new Set(g.items.map((a) => a.parentNumber as string))];
+    const values = numbers.map((n) => `"${n.replace(/"/g, "")}"`).join(", ");
+    const q = `${PREFIX}
+SELECT ?eme ?number ?flag WHERE {
+  ?eme a osr:Emendamento ;
+       osr:legislatura ${g.legislature} ;
+       osr:oggetto <${g.act}> ;
+       osr:numero ?number ;
+       osr:flagCommissione ?flag .
+  FILTER(STR(?flag) = "${g.committeeSeat ? "1" : "0"}")
+  FILTER(?number IN (${values}))
+}`;
+    const rows = await sparqlSelect(q);
+    const byNumber = new Map(rows.map((r) => [r.number, r.eme]));
+    for (const a of g.items) a.parentId = byNumber.get(a.parentNumber as string) ?? a.parentId;
+  }
 }
 
 /** Downloads the Akoma Ntoso text of an amendment and parses date, bill, text and signatories. */
@@ -75,5 +117,6 @@ export async function enrichWithContext(eme: Amendment): Promise<Amendment> {
   eme.text = parsed.text ?? undefined;
   eme.signatories = parsed.signatories;
   eme.signatoryUris = parsed.signatoryUris;
+  eme.parentNumber = parsed.parentNumber ?? eme.parentNumber;
   return eme;
 }

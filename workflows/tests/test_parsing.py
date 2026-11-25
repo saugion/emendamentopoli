@@ -79,7 +79,11 @@ def test_supabase_row():
         "testo",
         "firmatari",
         "firmatari_uri",
+        "numero_padre",
+        "emendamento_padre_id",
     }
+    assert row["numero_padre"] is None
+    assert row["emendamento_padre_id"] is None
 
 
 def test_supabase_row_with_signatories():
@@ -151,3 +155,52 @@ def test_senator_profile():
     assert senator_profile("http://dati.senato.it/senatore/0", 19) == ""
     assert senator_profile("http://dati.senato.it/senatore/000", 19) == ""
     assert senator_profile("http://example.com/x", 19) == "https://example.com/x"
+
+
+def test_parent_number_from_numero():
+    from amendments_worker.sources.senato import parent_number_from_numero
+
+    assert parent_number_from_numero("2.0.1000/14", "E") == "2.0.1000"
+    assert parent_number_from_numero("1.100/1", "E") == "1.100"
+    assert parent_number_from_numero("2.14", "E") is None
+    # gli o.d.g. hanno numeri con "/" nativi: non sono subemendamenti
+    assert parent_number_from_numero("G/912/1/5", "G") is None
+    assert parent_number_from_numero("G2.101", "G") is None
+
+
+def test_query_parent_ids():
+    from amendments_worker.sources.senato import query_parent_ids
+
+    q = query_parent_ids(19, "http://dati.senato.it/osr/oggetto/1526576", True, ["2.0.1000"])
+    assert "osr:legislatura 19" in q
+    assert "osr:oggetto <http://dati.senato.it/osr/oggetto/1526576>" in q
+    assert 'FILTER(STR(?flag) = "1")' in q
+    assert 'FILTER(?number IN ("2.0.1000"))' in q
+
+
+def test_extract_parent_number_from_akn():
+    from amendments_worker.workflows.akn import extract_parent_number
+
+    xml = """<an:akomaNtoso>
+      <an:references>
+        <an:activeRef id="ar1" href="http://dati.senato.it/Ddl/19/1222" showAs="Ddl 1222"/>
+        <an:activeRef id="ar2" href="http://dati.senato.it/19/Emend/S/1222/C/2.0.1000" showAs="Emendamento 2.0.1000"/>
+      </an:references>
+      <an:preface>
+        <an:p><an:affectedDocument href="#ar2">Emendamento 2.0.1000</an:affectedDocument></an:p>
+        <an:p><an:docNumber>Proposta di modifica n. 2.0.1000/14</an:docNumber></an:p>
+      </an:preface>
+    </an:akomaNtoso>"""
+    assert extract_parent_number(xml) == "2.0.1000"
+    # fallback dal solo docNumber
+    xml2 = "<an:preface><an:p><an:docNumber>Proposta di modifica n. 1.100/3</an:docNumber></an:p></an:preface>"
+    assert extract_parent_number(xml2) == "1.100"
+    # emendamento normale: nessun padre
+    xml3 = """<an:akomaNtoso>
+      <an:references><an:activeRef id="ar1" href="http://dati.senato.it/Ddl/19/391" showAs="Ddl 391"/></an:references>
+      <an:preface>
+        <an:p><an:affectedDocument href="#ar1">Ddl 391</an:affectedDocument></an:p>
+        <an:p><an:docNumber>Emendamento n. 2.14</an:docNumber></an:p>
+      </an:preface>
+    </an:akomaNtoso>"""
+    assert extract_parent_number(xml3) is None

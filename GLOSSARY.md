@@ -22,5 +22,8 @@ _Avoid_: griglia, criteria set
 **Periodo di ingestione**: the inclusive [date, end_date] range of submission dates covered by one ingest run.
 _Avoid_: batch window, range
 
-**Testo Akoma Ntoso**: the XML representation of an emendamento's text, from which date, bill, plain text and firmatari are extracted.
+**Testo Akoma Ntoso**: the XML representation of an emendamento's text, from which date, bill, plain text, firmatari and parent emendamento are extracted.
 _Avoid_: XML file, documento
+
+**Subemendamento (proposta di modifica)**: an emendamento that modifies another emendamento, numbered "X/N"; X is the **emendamento padre** (parent), stored as `numero_padre` + `emendamento_padre_id`.
+_Avoid_: modifica, rif

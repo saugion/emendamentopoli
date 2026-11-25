@@ -5,7 +5,7 @@
 //   MISTRAL_API_KEY=... npm run demo -- --limit 5
 //   node --experimental-strip-types src/main.ts --limit 5 --offset 50
 
-import { fetchAmendments, enrichWithContext } from "./senate.ts";
+import { fetchAmendments, enrichWithContext, resolveParentIds } from "./senate.ts";
 import { evaluate } from "./evaluate.ts";
 import { isSupabaseConfigured, saveToSupabase } from "./db.ts";
 import type { Amendment, Evaluation } from "./types.ts";
@@ -28,6 +28,13 @@ async function main() {
   // chronological order (submission date)
   enriched.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
 
+  // link subemendamenti (proposte di modifica) to the parent emendamento
+  try {
+    await resolveParentIds(enriched);
+  } catch (e) {
+    console.log(`(risoluzione emendamento padre non riuscita: ${(e as Error).message})`);
+  }
+
   console.log(`\u2192 Evaluating ${enriched.length} amendments...`);
   const evaluations: Evaluation[] = [];
   for (const eme of enriched) {
@@ -45,6 +52,9 @@ async function main() {
     if (eme.signatories && eme.signatories.length > 0) {
       const f = eme.signatories;
       console.log(`    Signatories (${f.length}): ${f.slice(0, 5).join(", ")}${f.length > 5 ? ", ..." : ""}`);
+    }
+    if (eme.parentNumber) {
+      console.log(`    Padre: emendamento ${eme.parentNumber}${eme.parentId ? ` (${eme.parentId})` : ""}`);
     }
     console.log(`    Source: ${eme.textUrl}`);
   }

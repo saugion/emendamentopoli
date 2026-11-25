@@ -232,6 +232,7 @@ footer { text-align: center; color: var(--muted-fg); font-size: 12px; padding: 2
 .cbadge { display: inline-block; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; padding: 1px 7px; border-radius: 999px; margin-left: 6px; border: 1px solid var(--border); color: var(--muted-fg); vertical-align: middle; }
 .cbadge.camera { color: #0ea5e9; border-color: #0ea5e9; }
 .cbadge.senato { color: #a855f7; border-color: #a855f7; }
+.cbadge.rif { color: var(--violet); border-color: var(--violet); }
 
 @media (max-width: 640px) {
   .card { gap: 12px; padding: 14px; }
@@ -553,7 +554,7 @@ function cardHTML(v, i) {
   return '<article class="card" role="listitem" tabindex="0" data-id="' + esc(v.id) + '" style="animation-delay:' + Math.min(i, 12) * 35 + 'ms" aria-label="' + esc(title) + ', score ' + esc(fmtScore(v.score_totale)) + '">' +
     gaugeSVG(v.score_totale, 56) +
     '<div class="body"><div class="row1"><div><div class="title"><span class="tbadge ' + type + '">' + typeLabel + "</span>" +
-    '<span class="num">' + esc(e.numero || "?") + "</span>" + (e.camera ? '<span class="cbadge ' + esc(e.camera) + '">' + esc(CHAMBER_LABEL[e.camera] || e.camera) + "</span>" : "") + "</div>" +
+    '<span class="num">' + esc(e.numero || "?") + "</span>" + (e.camera ? '<span class="cbadge ' + esc(e.camera) + '">' + esc(CHAMBER_LABEL[e.camera] || e.camera) + "</span>" : "") + (e.numero_padre ? '<span class="cbadge rif" title="proposta di modifica all\u2019emendamento ' + esc(e.numero_padre) + '">rif ' + esc(e.numero_padre) + "</span>" : "") + "</div>" +
     '<div class="meta"><span>' + esc(e.ddl || "atto non indicato") + '</span><span class="sep">·</span><span>' + esc(fmtDate(e.data)) + "</span></div>" + signatoriesHTML(e) + "</div></div>" +
     (v.riepilogo ? '<div class="summary">' + esc(v.riepilogo) + "</div>" : "") +
     (crit ? '<div class="crit">' + crit + "</div>" : "") +
@@ -621,6 +622,7 @@ function renderDetail(v) {
     (e.ddl ? "<span><b>" + esc(e.ddl) + "</b></span>" : "") +
     "<span>" + esc(fmtDate(e.data)) + "</span>" +
     (e.esito ? "<span>esito: <b>" + esc(String(e.esito).replace(/_/g, " ")) + "</b></span>" : "") +
+    (e.numero_padre ? "<span>proposta di modifica all\u2019emendamento <b>" + esc(e.numero_padre) + "</b>" + (v.emendamenti_padre && v.emendamenti_padre.url_testo ? ' <a href="' + esc(v.emendamenti_padre.url_testo) + '" target="_blank" rel="noopener">scheda padre \u2197</a>' : "") + "</span>" : "") +
     "<span>modello: <b>" + esc(v.modello || "?") + "</b></span>" +
     (e.url_testo ? '<span><a href="' + esc(e.url_testo) + '" target="_blank" rel="noopener">Fonte originale ↗</a></span>' : "");
   var rows = (v.punteggi || []).map(function (p) {

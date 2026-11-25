@@ -6,6 +6,7 @@ gli emendamenti del giorno prima e li salva su Supabase.
 - **Workflow**: `emendamenti-giornalieri`
   - input: `date` (inizio periodo, YYYY-MM-DD, default ieri in `Europe/Rome`), `end_date` (fine periodo inclusivo, default = `date`), `legislature` (default 19), `limit` (default 1000, max 20000)
   - step: SPARQL su `dati.senato.it` (open data, CC BY 3.0) sugli emendamenti piu' recenti → testi Akoma Ntoso → filtro per data di presentazione nel periodo `date..end_date` → upsert su `rest/v1/emendamenti` (`on_conflict=id`, a chunk da 500) man mano, batch SPARQL per batch
+  - subemendamenti (proposte di modifica, numero "X/N"): `numero_padre` dall'AKN (o dal numero) e `emendamento_padre_id` risolto via SPARQL sullo stesso atto + sede prima dell'upsert, cosi' si puo' risalire al padre
   - valuta anche con Mistral (via service account del deployment, nessuna API key) e scrive `valutazioni` + `punteggi`
   - backfill multi-giorno: `end_date` diverso da `date` e `limit` alto a sufficienza a coprire gli emendamenti del periodo (default 5000); la query SPARQL e' paginata a batch da 100 (LIMIT 100 + OFFSET, early stop a copertura del periodo) perche' l'endpoint risponde 500 con LIMIT molto alti; gli emendamenti gia' presenti su Supabase (mappa id->data letta all'inizio) non vengono ri-scaricati, quindi i rilanci sono economici; l'arricchimento procede con concorrenza limitata (8) e retry con backoff su 403/429, per non farsi bloccare da CloudFront
 - **Workflow**: `valuta-emendamenti-mancanti` (backfill: emendamenti in Supabase senza valutazione → valutazione LLM)

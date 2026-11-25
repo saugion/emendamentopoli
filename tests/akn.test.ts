@@ -29,6 +29,7 @@ for (const name of xmlFiles) {
         text: p.text,
         signatories: p.signatories,
         signatory_uris: p.signatoryUris,
+        parent_number: p.parentNumber,
       },
       expected,
     );

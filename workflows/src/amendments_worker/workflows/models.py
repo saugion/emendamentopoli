@@ -38,3 +38,5 @@ class Amendment(BaseModel):
     identical_group: str | None = None
     relevant_spending: bool | None = None
     relevance_reasons: list[str] = Field(default_factory=list)
+    numero_padre: str | None = None  # numero dell'emendamento padre (subemendamento "X/N" -> "X")
+    emendamento_padre_id: str | None = None  # id (URI) dell'emendamento padre, risolto via SPARQL

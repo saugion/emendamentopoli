@@ -9,6 +9,9 @@ Valutazione IA dell'utilita' pubblica degli emendamenti parlamentari italiani.
 1. **Ingestione Senato**: metadati degli emendamenti e ordini del giorno dall'endpoint SPARQL
    di [dati.senato.it](https://dati.senato.it) (Open Data, licenza CC BY 3.0); il testo Akoma Ntoso
    di ogni atto si scarica da senato.it (data di presentazione, ddl, testo, firmatari).
+   I subemendamenti (proposte di modifica, numero "X/N") vengono collegati all'emendamento padre:
+   `numero_padre` = "X" (dal testo AKN o dal numero) e `emendamento_padre_id` = URI del padre
+   risolto via SPARQL sullo stesso atto + sede, cosi' si puo' risalire al padre.
 2. **Ingestione Camera**: metadati degli ordini del giorno e dei progetti di legge dall'endpoint SPARQL
    di [dati.camera.it](https://dati.camera.it) (licenza CC BY-SA 4.0); lo SPARQL fornisce solo i metadati,
    il testo (con tutte le versioni, firmatari, parere del Governo ed esito) si legge per singolo atto
@@ -56,6 +59,7 @@ Zero dipendenze runtime: richiede Node 22+ (TypeScript nativo).
    - `supabase/migrations/0005_camera_odg_atti.sql` - colonne Camera, tabelle `atti` e `ingest_cursori`
    - `supabase/migrations/0006_rilevanza.sql` - filtro di rilevanza e campi finanziari della rubrica v2
    - `supabase/migrations/0007_camera_emendamenti.sql` - stato degli elenchi emendamenti della Camera (GET condizionale)
+   - `supabase/migrations/0008_emendamento_padre.sql` - colonne `numero_padre` / `emendamento_padre_id` (link subemendamento -> emendamento padre); la web app mostra il badge "rif" e il link "scheda padre" nel dettaglio
 3. Imposta le variabili d'ambiente `SUPABASE_URL` e `SUPABASE_KEY`
    (publishable/anon key; vedi `.env.example`).
 
