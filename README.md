@@ -60,6 +60,7 @@ Zero dipendenze runtime: richiede Node 22+ (TypeScript nativo).
    - `supabase/migrations/0006_rilevanza.sql` - filtro di rilevanza e campi finanziari della rubrica v2
    - `supabase/migrations/0007_camera_emendamenti.sql` - stato degli elenchi emendamenti della Camera (GET condizionale)
    - `supabase/migrations/0008_emendamento_padre.sql` - colonne `numero_padre` / `emendamento_padre_id` (link subemendamento -> emendamento padre) + backfill SQL dei record gia' esistenti (numero "X/N" -> padre "X", link via chiave_naturale); la web app mostra il badge "rif" e il link "scheda padre" nel dettaglio
+   - `supabase/migrations/0009_emendamenti_fonte_uri.sql` - indice su `emendamenti(fonte_uri)`: senza, il filtro per lista Camera in `db_emendamenti_by_fonte` va in statement timeout (57014) a tabella piena
 3. Imposta le variabili d'ambiente `SUPABASE_URL` e `SUPABASE_KEY`
    (publishable/anon key; vedi `.env.example`).
 
