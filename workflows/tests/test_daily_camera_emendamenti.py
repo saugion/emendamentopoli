@@ -197,3 +197,25 @@ async def test_conditional_get_304_skips_list(monkeypatch):
     assert d["lists_not_modified"] == 1
     assert d["details_fetched"] == 0
     assert captured and captured[0].headers.get("If-Modified-Since") == LAST_MODIFIED
+
+
+async def test_discover_atto_lists_dedupes_urls_across_atti(monkeypatch):
+    # the same list URL linked from two atto pages of one batch must be upserted
+    # once: PostgREST 21000 "cannot affect row a second time" on duplicate keys
+    captured: list[list[dict]] = []
+
+    async def _upsert(rows):
+        captured.append(rows)
+
+    monkeypatch.setattr(mod, "db_upsert_liste", _upsert)
+    page = ('<a href="' + LIST_URL.replace("&", "&amp;") + '">Emendamenti</a>').encode("utf-8")
+    with respx.mock(assert_all_called=False) as router:
+        router.get(url__regex=r"www\.camera\.it/leg19/126").mock(
+            return_value=httpx.Response(200, content=page)
+        )
+        result = await mod.discover_atto_lists(["3133", "3106"], 19)
+    assert result.lists_found == 1
+    assert len(captured) == 1
+    assert [r["url"] for r in captured[0]] == [LIST_URL]
+    assert captured[0][0]["atto_numero"] == "3133"
+    assert captured[0][0]["sede"] == "com08ref"
