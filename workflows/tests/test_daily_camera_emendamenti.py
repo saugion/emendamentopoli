@@ -258,3 +258,29 @@ async def test_cursor_mode_advances_cursor_after_each_batch(monkeypatch):
     result = result if isinstance(result, dict) else result.model_dump()
     assert result["atti_discovered"] == 2
     assert cursor_sets == ["2026-11-20T10:00:00Z", "2026-11-21T10:00:00Z"]
+
+
+async def test_atti_for_discovery_pages_beyond_1000(monkeypatch):
+    # PostgREST max-rows=1000: limit=2500 must be fetched with offset pages,
+    # a single limit=2500 request would silently truncate to 1000 rows
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_KEY", "test-key")
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        params = request.url.params
+        offset, limit = int(params["offset"]), int(params["limit"])
+        assert limit <= 1000
+        rows = [
+            {"numero": str(3000 + i), "fonte_modificata": f"2026-11-{i % 28 + 1:02d}T00:00:00Z"}
+            for i in range(offset, min(offset + limit, 2500))
+        ]
+        return httpx.Response(200, json=rows)
+
+    with respx.mock(assert_all_called=False) as router:
+        router.get("https://example.supabase.co/rest/v1/atti").mock(side_effect=handler)
+        rows = await mod.db_atti_for_discovery(None, 2500)
+    assert len(rows) == 2500
+    assert [int(r.url.params["offset"]) for r in requests] == [0, 1000, 2000]
+    assert [int(r.url.params["limit"]) for r in requests] == [1000, 1000, 500]

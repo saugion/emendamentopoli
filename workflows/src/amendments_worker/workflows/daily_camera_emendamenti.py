@@ -29,7 +29,7 @@ from ..sources.camera_emendamenti import (
     parse_detail,
     parse_list,
 )
-from ..sources.common import camera_html_timeout, polite_get
+from ..sources.common import SUPABASE_PAGE, camera_html_timeout, polite_get
 from ..sources.rilevanza import calcola_rilevanza
 from .daily_camera_odg import camera_cursor_get, camera_cursor_set, db_atti_flags
 from .evaluation import evaluate_and_save
@@ -92,19 +92,28 @@ async def db_atti_for_discovery(cursor: str | None, limit: int) -> list[tuple[st
             datetime.fromisoformat(cursor.replace("Z", "+00:00")) - timedelta(days=2)
         ).strftime("%Y-%m-%dT%H:%M:%SZ")
         filters["fonte_modificata"] = f"gte.{since}"
+    # PostgREST caps responses at max-rows=1000: a single limit>1000 request would
+    # silently truncate, so page with offset until the requested limit is reached
+    rows: list[dict] = []
     async with httpx.AsyncClient(timeout=60.0, headers=source_supabase.supabase_headers(key)) as client:
-        resp = await client.get(
-            f"{base}/rest/v1/atti",
-            params={
-                "select": "numero,fonte_modificata",
-                "order": "fonte_modificata.asc,uri.asc",
-                "limit": str(limit),
-                **filters,
-            },
-            headers=source_supabase.supabase_headers(key),
-        )
-        resp.raise_for_status()
-        rows = resp.json()
+        while len(rows) < limit:
+            page_limit = min(SUPABASE_PAGE, limit - len(rows))
+            resp = await client.get(
+                f"{base}/rest/v1/atti",
+                params={
+                    "select": "numero,fonte_modificata",
+                    "order": "fonte_modificata.asc,uri.asc",
+                    "limit": str(page_limit),
+                    "offset": str(len(rows)),
+                    **filters,
+                },
+                headers=source_supabase.supabase_headers(key),
+            )
+            resp.raise_for_status()
+            page = resp.json()
+            rows.extend(page)
+            if len(page) < page_limit:
+                break
     return [(r["numero"], r["fonte_modificata"]) for r in rows if r.get("fonte_modificata")]
 
 
