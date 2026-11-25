@@ -56,15 +56,16 @@ export function createStore(config) {
     if (o.type !== "all") p.push("emendamenti.tipo=eq." + o.type);
     if (hasCorrente) p.push("emendamenti.corrente=eq.true");
     if (hasChamber && o.chamber && o.chamber !== "all") p.push("emendamenti.camera=eq." + o.chamber);
+    if (hasParent && o.excludeSubs) p.push("emendamenti.numero_padre=is.null");
     return p;
   }
-  function searchOrClause(qs) {
+  function searchOrClause(qs, excludeSubs) {
     var pat = "*" + qs + "*";
     var emOr = ["numero.ilike." + pat, "ddl.ilike." + pat, "testo.ilike." + pat];
     if (hasSignatories) emOr.push("firmatari.ilike." + pat);
     return Promise.all([
       api("valutazioni?select=id&or=(riepilogo.ilike." + pat + ")&limit=1000"),
-      api("emendamenti?select=id&or=(" + emOr.join(",") + ")" + (hasCorrente ? "&corrente=eq.true" : "") + "&limit=1000")
+      api("emendamenti?select=id&or=(" + emOr.join(",") + ")" + (hasCorrente ? "&corrente=eq.true" : "") + (hasParent && excludeSubs ? "&numero_padre=is.null" : "") + "&limit=1000")
     ]).then(function (rs) {
       var valIds = rs[0].data.map(function (r) { return r.id; });
       var emIds = rs[1].data.map(function (r) { return '"' + String(r.id).replace(/"/g, "") + '"'; });
@@ -119,7 +120,7 @@ export function createStore(config) {
         });
       };
       if (!qs) return fetchPage(null);
-      return searchOrClause(qs).catch(function () {
+      return searchOrClause(qs, o.excludeSubs).catch(function () {
         throw new Error("Ricerca non riuscita");
       }).then(function (orClause) {
         if (!orClause) return { items: [], total: 0 };
