@@ -156,21 +156,29 @@ async def db_list_state(url: str) -> dict | None:
     return rows[0] if rows else None
 
 
+def _liste_row(url: str, **extra) -> dict:
+    # PostgREST upsert checks NOT NULL on the proposed insert row before the
+    # conflict arbitration, so every upsert must carry all not-null columns.
+    parts = list_url_parts(url)
+    atto_numero, sede = parts if parts else ("?", "?")
+    return {"url": url, "legislatura": 19, "atto_numero": atto_numero, "sede": sede, **extra}
+
+
 async def db_list_touch(url: str) -> None:
     await db_upsert_liste(
-        [{"url": url, "controllato_at": datetime.now(timezone.utc).isoformat()}]
+        [_liste_row(url, controllato_at=datetime.now(timezone.utc).isoformat())]
     )
 
 
 async def db_list_store_result(url: str, last_modified: str, righe: int) -> None:
     await db_upsert_liste(
         [
-            {
-                "url": url,
-                "last_modified": last_modified,
-                "righe": righe,
-                "controllato_at": datetime.now(timezone.utc).isoformat(),
-            }
+            _liste_row(
+                url,
+                last_modified=last_modified,
+                righe=righe,
+                controllato_at=datetime.now(timezone.utc).isoformat(),
+            )
         ]
     )
 
