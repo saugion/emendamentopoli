@@ -251,6 +251,11 @@ async def lists_to_check(atti: list[str] | None, limit: int) -> list[str]:
     return await db_lists_to_check(atti, limit)
 
 
+@workflows.activity(start_to_close_timeout=timedelta(seconds=60), retry_policy_max_attempts=3)
+async def lists_known_count() -> int:
+    return await db_lists_known()
+
+
 @workflows.activity(start_to_close_timeout=timedelta(seconds=900), retry_policy_max_attempts=2)
 async def process_camera_list(url: str, max_detail: int) -> ListResult:
     import httpx
@@ -402,7 +407,7 @@ class DailyCameraEmendamentiWorkflow:
         for batch in batches:
             result = await discover_atto_lists(batch, input.legislature)
             errors.extend(result.errors)
-        lists_known = await db_lists_known()
+        lists_known = await lists_known_count()
 
         # (2) check the lists
         urls = await lists_to_check(input.atti, input.max_liste)
