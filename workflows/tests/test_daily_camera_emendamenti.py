@@ -219,3 +219,42 @@ async def test_discover_atto_lists_dedupes_urls_across_atti(monkeypatch):
     assert [r["url"] for r in captured[0]] == [LIST_URL]
     assert captured[0][0]["atto_numero"] == "3133"
     assert captured[0][0]["sede"] == "com08ref"
+
+
+async def test_cursor_mode_advances_cursor_after_each_batch(monkeypatch):
+    # plan G: in cursor mode the cursor is set to the fonte_modificata of the last
+    # discovered atto AFTER EACH BATCH, so a failed batch is retried on the next run
+    fake = FakeSupabase()
+    _wire_db(monkeypatch, fake)
+    atti_rows = [("3100", "2026-11-20T10:00:00Z"), ("3101", "2026-11-21T10:00:00Z")]
+    cursor_sets: list[str] = []
+
+    async def _atti_for_discovery(cursor, limit):
+        return list(atti_rows)
+
+    async def _cursor_get(nome):
+        return None
+
+    async def _cursor_set(nome, valore):
+        cursor_sets.append(valore)
+
+    async def _discover(numeri, legislature):
+        return mod.DiscoveryResult(lists_found=0, errors=[])
+
+    async def _lists_to_check(atti, limit):
+        return []
+
+    monkeypatch.setattr(mod, "atti_for_discovery", _atti_for_discovery)
+    monkeypatch.setattr(mod, "camera_cursor_get", _cursor_get)
+    monkeypatch.setattr(mod, "camera_cursor_set", _cursor_set)
+    monkeypatch.setattr(mod, "discover_atto_lists", _discover)
+    monkeypatch.setattr(mod, "lists_to_check", _lists_to_check)
+    monkeypatch.setattr(mod, "DISCOVERY_BATCH", 1)
+    with respx.mock(assert_all_called=False):
+        result = await workflows.execute_workflow(
+            DailyCameraEmendamentiWorkflow,
+            params=mod.DailyCameraEmendamentiInput(atti=None, max_atti=10, max_liste=0, max_detail=0, evaluate=False),
+        )
+    result = result if isinstance(result, dict) else result.model_dump()
+    assert result["atti_discovered"] == 2
+    assert cursor_sets == ["2026-11-20T10:00:00Z", "2026-11-21T10:00:00Z"]
