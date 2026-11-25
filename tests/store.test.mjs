@@ -263,3 +263,46 @@ test("init without the signatory columns omits them from the select", async () =
   assert.ok(!calls[0].includes("firmatari_uri"));
   assert.ok(calls[0].includes("firmatari,") === false || calls[0].includes("firmatari_uri") === false);
 });
+
+test("search with excludeSubs adds numero_padre=is.null when migration 0008 exists (and to the em probe)", async () => {
+  const { store, calls } = await makeStore((url) =>
+    url.includes("/rest/v1/emendamenti?") ? jsonResponse([]) : jsonResponse([{ id: 1 }], { contentRange: "0-0/1" })
+  );
+  await store.search({ q: "", type: "all", minScore: 0, excludeSubs: true, sort: "score_desc", offset: 0, limit: 30 });
+  const main = calls[calls.length - 1].url;
+  assert.ok(main.includes("emendamenti.numero_padre=is.null"));
+  // senza il flag il parametro non c'e'
+  await store.search({ q: "", type: "all", minScore: 0, excludeSubs: false, sort: "score_desc", offset: 0, limit: 30 });
+  assert.ok(!calls[calls.length - 1].url.includes("numero_padre=is.null"));
+});
+
+test("search with q + excludeSubs applies the filter also to the emendamenti probe", async () => {
+  const { store, calls } = await makeStore((url) => {
+    if (url.includes("riepilogo.ilike")) return jsonResponse([]);
+    if (url.includes("/rest/v1/emendamenti?")) return jsonResponse([{ id: "http://dati.senato.it/emendamento/9" }]);
+    return jsonResponse([], { contentRange: "*/0" });
+  });
+  await store.search({ q: "salute", type: "all", minScore: 0, excludeSubs: true, sort: "score_desc", offset: 0, limit: 30 });
+  const emProbe = calls.find((c) => c.url.includes("/rest/v1/emendamenti?select=id&or="));
+  assert.ok(emProbe.url.includes("numero_padre=is.null"));
+  const main = calls[calls.length - 1].url;
+  assert.ok(main.includes("emendamenti.numero_padre=is.null"));
+});
+
+test("without migration 0008 the excludeSubs param is never sent", async () => {
+  mockFetch((url) =>
+    url.includes("select=numero_padre")
+      ? jsonResponse("nope", { status: 400 })
+      : url.includes("/rest/v1/valutazioni?")
+        ? jsonResponse([], { contentRange: "*/0" })
+        : okInit()
+  );
+  const store = createStore(CFG);
+  const flags = await store.init();
+  assert.equal(flags.parent, false);
+  const calls = [];
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => { calls.push(String(url)); return origFetch(url, opts); };
+  await store.search({ q: "", type: "all", minScore: 0, excludeSubs: true, sort: "score_desc", offset: 0, limit: 30 });
+  assert.ok(!calls[calls.length - 1].includes("numero_padre"));
+});

@@ -294,6 +294,8 @@ footer { text-align: center; color: var(--muted-fg); font-size: 12px; padding: 2
     <div class="chipgroup" id="cg-chamber" role="group" aria-label="Filtra per ramo del Parlamento" hidden></div>
     <span class="group-lbl">Score</span>
     <div class="chipgroup" id="cg-score" role="group" aria-label="Filtra per score minimo"></div>
+    <span class="group-lbl" id="lbl-subs" hidden>Sub</span>
+    <div class="chipgroup" id="cg-subs" role="group" aria-label="Filtra i subemendamenti (proposte di modifica)" hidden></div>
     <div class="seg" id="seg-sort" role="group" aria-label="Ordina risultati">
       <span class="thumb" aria-hidden="true"></span>
     </div>
@@ -359,17 +361,19 @@ var SCORES = [[0, "Tutti"], [5, "≥ 5"], [7, "≥ 7"], [8.5, "≥ 8,5"]];
 var SORTS = [["score_desc", "Score ↓"], ["score_asc", "Score ↑"], ["data_desc", "Recenti ↓"], ["data_asc", "Data ↑"]];
 var CHAMBERS = [["all", "Tutte"], ["senato", "Senato"], ["camera", "Camera"]];
 var CHAMBER_LABEL = { senato: "Senato", camera: "Camera" };
+var SUBS = [["all", "Tutti"], ["base", "Senza rif"]];
 var HAS_CHAMBER = false;   // migration 0005 (camera, esito), detected by store.init()
 var HAS_CORRENTE = false;  // migration 0004 (versions)
 var HAS_FINANCE = false;   // migration 0006 (impatto_finanziario)
+var HAS_PARENT = false;    // migration 0008 (numero_padre, emendamento_padre_id)
 
-var state = { q: "", type: "all", chamber: "all", minScore: 0, sort: "score_desc", items: [], total: null, loading: false, ended: false, error: null, seq: 0 };
+var state = { q: "", type: "all", chamber: "all", minScore: 0, subs: "all", sort: "score_desc", items: [], total: null, loading: false, ended: false, error: null, seq: 0 };
 var drawerId = null;
 var lastFocus = null;
 
 function $(id) { return document.getElementById(id); }
 var els = { q: $("q"), list: $("list"), count: $("count"), sentinel: $("sentinel"), loadMore: $("load-more"),
-  loadmsg: $("loadmsg"), end: $("end"), endText: $("end-text"), cgType: $("cg-type"), cgScore: $("cg-score"), cgChamber: $("cg-chamber"), lblChamber: $("lbl-chamber"),
+  loadmsg: $("loadmsg"), end: $("end"), endText: $("end-text"), cgType: $("cg-type"), cgScore: $("cg-score"), cgChamber: $("cg-chamber"), lblChamber: $("lbl-chamber"), cgSubs: $("cg-subs"), lblSubs: $("lbl-subs"),
   seg: $("seg-sort"), frow: $("frow"), scrim: $("scrim"), drawer: $("drawer"), dBody: $("d-body"),
   dTitle: $("d-title"), dMeta: $("d-meta"), dGauge: $("d-gauge"), dClose: $("d-close"), dPrev: $("d-prev"), dNext: $("d-next"),
   themeBtn: $("theme-btn"), icoSun: $("ico-sun"), icoMoon: $("ico-moon"), kbd: $("kbd-hint") };
@@ -398,6 +402,7 @@ function loadMore() {
     type: state.type,
     chamber: state.chamber,
     minScore: state.minScore,
+    excludeSubs: state.subs === "base",
     sort: state.sort,
     offset: state.items.length,
     limit: PAGE
@@ -487,7 +492,7 @@ function showError(err) {
 function showEmpty() {
   hideSkeletons();
   var qs = sanitizeQuery(state.q);
-  var filtered = qs || state.type !== "all" || state.chamber !== "all" || state.minScore > 0;
+  var filtered = qs || state.type !== "all" || state.chamber !== "all" || state.minScore > 0 || state.subs !== "all";
   var msg, sub;
   if (filtered) {
     msg = "Nessun risultato" + (qs ? " per «" + qs + "»" : "");
@@ -502,7 +507,7 @@ function showEmpty() {
     (filtered ? '<button class="btn primary" id="reset-filters" type="button">Azzera filtri e ricerca</button>' : "") + "</div>";
   if (filtered) {
     $("reset-filters").addEventListener("click", function () {
-      state.q = ""; state.type = "all"; state.chamber = "all"; state.minScore = 0;
+      state.q = ""; state.type = "all"; state.chamber = "all"; state.minScore = 0; state.subs = "all";
       els.q.value = "";
       syncChipGroups(); resetAndLoad();
     });
@@ -718,6 +723,8 @@ function syncChipGroups() {
   buildChips(els.cgScore, SCORES, state.minScore, function (v) { state.minScore = v; syncChipGroups(); resetAndLoad(); });
   els.cgChamber.hidden = !HAS_CHAMBER; els.lblChamber.hidden = !HAS_CHAMBER;
   if (HAS_CHAMBER) buildChips(els.cgChamber, CHAMBERS, state.chamber, function (v) { state.chamber = v; syncChipGroups(); resetAndLoad(); });
+  els.cgSubs.hidden = !HAS_PARENT; els.lblSubs.hidden = !HAS_PARENT;
+  if (HAS_PARENT) buildChips(els.cgSubs, SUBS, state.subs, function (v) { state.subs = v; syncChipGroups(); resetAndLoad(); });
 }
 function buildSeg() {
   els.seg.querySelectorAll("button").forEach(function (b) { b.remove(); });
@@ -748,6 +755,7 @@ function updateFrow() {
   if (state.type !== "all") chips.push({ lbl: "Tipo: " + (state.type === "G" ? "O.d.G." : "Emendamenti"), fn: function () { state.type = "all"; } });
   if (state.chamber !== "all") chips.push({ lbl: "Ramo: " + CHAMBER_LABEL[state.chamber], fn: function () { state.chamber = "all"; } });
   if (state.minScore > 0) chips.push({ lbl: "Score ≥ " + String(state.minScore).replace(".", ","), fn: function () { state.minScore = 0; } });
+  if (state.subs !== "all") chips.push({ lbl: "Senza rif", fn: function () { state.subs = "all"; } });
   if (!chips.length) { els.frow.classList.remove("show"); els.frow.innerHTML = ""; return; }
   els.frow.classList.add("show");
   els.frow.innerHTML = "";
@@ -762,7 +770,7 @@ function updateFrow() {
   clear.type = "button";
   clear.className = "clearbtn";
   clear.textContent = "Cancella tutto";
-  clear.addEventListener("click", function () { state.q = ""; state.type = "all"; state.chamber = "all"; state.minScore = 0; els.q.value = ""; syncChipGroups(); resetAndLoad(); });
+  clear.addEventListener("click", function () { state.q = ""; state.type = "all"; state.chamber = "all"; state.minScore = 0; state.subs = "all"; els.q.value = ""; syncChipGroups(); resetAndLoad(); });
   els.frow.appendChild(clear);
 }
 
@@ -774,6 +782,7 @@ function updateHash() {
   if (state.type !== "all") p.set("type", state.type);
   if (state.chamber !== "all") p.set("ramo", state.chamber);
   if (state.minScore > 0) p.set("min", String(state.minScore));
+  if (state.subs !== "all") p.set("sub", state.subs);
   if (state.sort !== "score_desc") p.set("sort", state.sort);
   var s = p.toString();
   history.replaceState(null, "", s ? "#" + s : location.pathname + location.search);
@@ -785,6 +794,7 @@ function readHash() {
   var t = p.get("type"); if (t === "E" || t === "G") state.type = t;
   var r = p.get("ramo"); if (r === "senato" || r === "camera") state.chamber = r;
   var m = parseFloat(p.get("min")); if (!isNaN(m) && m > 0 && m <= 10) state.minScore = m;
+  var sb = p.get("sub"); if (sb === "base") state.subs = "base";
   var s = p.get("sort"); if (SORTS.some(function (o) { return o[0] === s; })) state.sort = s;
 }
 
@@ -857,6 +867,7 @@ store.init().then(function (flags) {
   HAS_CHAMBER = !!(flags && flags.chamber);
   HAS_CORRENTE = !!(flags && flags.corrente);
   HAS_FINANCE = !!(flags && flags.finance);
+  HAS_PARENT = !!(flags && flags.parent);
   readHash();
   syncChipGroups();
   buildSeg();
