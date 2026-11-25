@@ -239,3 +239,22 @@ async def test_reuse_by_text_hash(monkeypatch):
     assert len(copied) == 1
     assert copied[0]["copiata_da"] == [v for v in vals if v.get("copiata_da") is None][0]["id"]
     assert copied[0]["testo_hash"] == [v for v in vals if v.get("copiata_da") is None][0]["testo_hash"]
+
+
+async def test_db_cursor_get_paginates_on_nome_not_id(monkeypatch):
+    # ingest_cursori has no id column (PK is nome): ordering by the default key="id"
+    # makes PostgREST return 400, so the cursor read must keyset-paginate on nome.
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_KEY", "test-key")
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=[{"nome": "camera_odg_modified", "valore": "2026-11-25T00:00:00Z"}])
+
+    with respx.mock(assert_all_called=False) as router:
+        router.get("https://example.supabase.co/rest/v1/ingest_cursori").mock(side_effect=handler)
+        valore = await mod.db_cursor_get("camera_odg_modified")
+    assert valore == "2026-11-25T00:00:00Z"
+    assert all(r.url.params["order"] == "nome.asc" for r in requests)
+    assert all("id" not in r.url.params for r in requests)

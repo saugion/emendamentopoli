@@ -101,7 +101,7 @@ async def db_cursor_get(nome: str) -> str | None:
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=45.0, headers=source_supabase.supabase_headers(key)) as client:
         rows = await source_supabase.select_all(
-            client, "ingest_cursori", "nome,valore", {"nome": f"eq.{nome}"}
+            client, "ingest_cursori", "nome,valore", {"nome": f"eq.{nome}"}, key="nome"
         )
     return rows[0]["valore"] if rows else None
 
