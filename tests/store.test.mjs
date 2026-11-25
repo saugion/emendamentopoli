@@ -89,7 +89,21 @@ test("search with q runs the two probes then the or= main query", async () => {
   const emProbe = calls.find((c) => c.url.includes("/rest/v1/emendamenti?select=id&or="));
   assert.ok(emProbe.url.includes("firmatari.ilike.*salute*"));
   const main = calls[calls.length - 1].url;
-  assert.ok(main.includes('or=(id.in.(5),emendamento_id.in.("http://dati.senato.it/emendamento/9"))'));
+  assert.ok(main.includes("or=" + encodeURIComponent('(id.in.(5),emendamento_id.in.("http://dati.senato.it/emendamento/9"))')));
+});
+
+test("search encodes the or= clause: ids with # (camera) must not truncate the query string", async () => {
+  const { store, calls } = await makeStore((url) => {
+    if (url.includes("riepilogo.ilike")) return jsonResponse([]);
+    if (url.includes("/rest/v1/emendamenti?")) return jsonResponse([{ id: "camera:19:odg:9/02355/145#v1" }]);
+    return jsonResponse([], { contentRange: "*/0" });
+  });
+  await store.search({ q: "1100", type: "all", minScore: 0, sort: "score_desc", offset: 0, limit: 30 });
+  const main = calls[calls.length - 1].url;
+  const query = main.slice(main.indexOf("?") + 1);
+  assert.ok(!query.includes("#"), "raw # in query string would truncate it at the fragment");
+  assert.ok(query.includes("or=" + encodeURIComponent('(emendamento_id.in.("camera:19:odg:9/02355/145#v1"))')));
+  assert.ok(query.includes("%23v1"));
 });
 
 test("search with q and no matches returns empty without a main call", async () => {
@@ -145,7 +159,7 @@ test("detail of a subemendamento fetches the parent row (migration 0008)", async
         emendamenti: { numero: "2.0.1000/14", numero_padre: "2.0.1000", emendamento_padre_id: "http://dati.senato.it/emendamento/1529000" },
       }]);
     }
-    if (url.includes("emendamenti?id=eq.http://dati.senato.it/emendamento/1529000")) {
+    if (decodeURIComponent(url).includes("emendamenti?id=eq.http://dati.senato.it/emendamento/1529000")) {
       return jsonResponse([{ id: "http://dati.senato.it/emendamento/1529000", numero: "2.0.1000", url_testo: "http://www.senato.it/show-doc?tipodoc=Emend&leg=19&id=1529000", ddl: "Ddl 1222" }]);
     }
     return okInit();
@@ -155,7 +169,8 @@ test("detail of a subemendamento fetches the parent row (migration 0008)", async
   const det = calls.find((c) => c.url.includes("valutazioni?id=eq.42"));
   assert.ok(det.url.includes("emendamento_padre_id"));
   assert.ok(det.url.includes("numero_padre"));
-  const par = calls.find((c) => c.url.includes("emendamenti?id=eq.http://dati.senato.it/emendamento/1529000"));
+  const par = calls.find((c) => c.url.includes("emendamenti?id=eq."));
+  assert.ok(par.url.includes("id=eq." + encodeURIComponent("http://dati.senato.it/emendamento/1529000")));
   assert.ok(par.url.includes("select=id,numero,url_testo,ddl&limit=1"));
 });
 
