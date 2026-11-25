@@ -409,6 +409,7 @@ class DailyCameraEmendamentiWorkflow:
         esito_updates = 0
 
         # (1) discovery
+        atti_rows: list[tuple[str, str]] = []
         if input.atti:
             batches = [input.atti[i : i + DISCOVERY_BATCH] for i in range(0, len(input.atti), DISCOVERY_BATCH)]
         else:
@@ -416,11 +417,13 @@ class DailyCameraEmendamentiWorkflow:
             atti_rows = await atti_for_discovery(cursor_value, input.max_atti)
             batches = [ [n for n, _ in atti_rows[i : i + DISCOVERY_BATCH]] for i in range(0, len(atti_rows), DISCOVERY_BATCH) ]
             atti_discovered = len(atti_rows)
-            if atti_rows:
-                await camera_cursor_set(CURSOR_NAME, atti_rows[-1][1])
-        for batch in batches:
+        for i, batch in enumerate(batches):
             result = await discover_atto_lists(batch, input.legislature)
             errors.extend(result.errors)
+            # cursor advances only after a batch has been discovered and stored
+            if atti_rows:
+                last = atti_rows[min((i + 1) * DISCOVERY_BATCH, len(atti_rows)) - 1]
+                await camera_cursor_set(CURSOR_NAME, last[1])
         lists_known = await lists_known_count()
 
         # (2) check the lists
