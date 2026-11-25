@@ -71,7 +71,9 @@ export function createStore(config) {
       var parts = [];
       if (valIds.length) parts.push("id.in.(" + valIds.join(",") + ")");
       if (emIds.length) parts.push("emendamento_id.in.(" + emIds.join(",") + ")");
-      return parts.length ? "or=(" + parts.join(",") + ")" : null;
+      // inner logic-tree clause only; the caller encodes it (ids may contain "#", which
+      // would truncate a raw query string at the fragment and break the logic tree)
+      return parts.length ? "(" + parts.join(",") + ")" : null;
     });
   }
 
@@ -121,7 +123,7 @@ export function createStore(config) {
         throw new Error("Ricerca non riuscita");
       }).then(function (orClause) {
         if (!orClause) return { items: [], total: 0 };
-        return fetchPage(orClause);
+        return fetchPage("or=" + encodeURIComponent(orClause));
       });
     },
 
@@ -132,7 +134,7 @@ export function createStore(config) {
         var pid = row.emendamenti && row.emendamenti.emendamento_padre_id;
         if (!hasParent || !pid) return row;
         // risali al padre: fetch the parent emendamento row (numero + link alla scheda senato.it)
-        return api("emendamenti?id=eq." + pid + "&select=id,numero,url_testo,ddl&limit=1").then(function (pr) {
+        return api("emendamenti?id=eq." + encodeURIComponent(pid) + "&select=id,numero,url_testo,ddl&limit=1").then(function (pr) {
           if (pr.data.length) row.emendamenti_padre = pr.data[0];
           return row;
         }).catch(function () { return row; });
