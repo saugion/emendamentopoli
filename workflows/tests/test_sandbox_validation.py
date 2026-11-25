@@ -52,3 +52,42 @@ def test_workflow_run_methods_avoid_nondeterministic_calls():
                 raise AssertionError(
                     f"{cls.__name__}.run calls datetime.{node.func.attr}() in workflow code"
                 )
+
+
+def test_workflow_run_methods_only_await_activities():
+    """The run method executes inside the sandbox: it may only await functions
+    decorated with @workflows.activity (activities run outside the sandbox), so
+    a plain helper doing I/O would crash with RestrictedWorkflowAccessError."""
+    import ast
+    import inspect
+    import textwrap
+    from pathlib import Path
+
+    pkg = Path(workflows.__file__).resolve().parent
+    for path in sorted(pkg.glob("*.py")):
+        tree = ast.parse(path.read_text())
+        activities = set()
+        module_funcs = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                module_funcs.add(node.name)
+                for dec in node.decorator_list:
+                    target = dec.func if isinstance(dec, ast.Call) else dec
+                    if isinstance(target, ast.Attribute) and target.attr == "activity":
+                        activities.add(node.name)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "run":
+                src = textwrap.dedent(inspect.getsource(node))
+                run_tree = ast.parse(src)
+                called = {
+                    sub.value.func.id
+                    for sub in ast.walk(run_tree)
+                    if isinstance(sub, ast.Await)
+                    and isinstance(sub.value, ast.Call)
+                    and isinstance(sub.value.func, ast.Name)
+                }
+                local = {
+                    n.name for n in ast.walk(run_tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                }
+                bad = {c for c in called - activities - local if c in module_funcs}
+                assert not bad, f"{path.name}: run awaits plain functions {sorted(bad)}"
