@@ -11,9 +11,10 @@ begin;
 -- sonda laterale per ogni candidato (~8s su 18k candidati): con statement_timeout=3s
 -- del ruolo anon la query va in 57014 e la coda di valutazione si blocca.
 -- Indice partial sulle sole righe candidate, ordinate per data: scan index-only in
--- ordine, stop a LIMIT; l'anti-join resta una sonda sull'indice di valutazioni.
+-- ordine (id in INCLUDE), stop a LIMIT; l'anti-join resta una sonda index-only
+-- sull'indice di valutazioni. Serve a queue_senza_valutazione (migrazione 0014).
 create index if not exists idx_emendamenti_eval_queue
-  on emendamenti (data desc nulls last)
+  on emendamenti (data desc nulls last) include (id)
   where corrente and rilevante_spesa and testo is not null;
 
 commit;

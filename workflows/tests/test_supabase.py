@@ -108,7 +108,9 @@ async def test_insert_evaluations_posts_valutazioni_then_punteggi(transport):
     ]
 
 
-async def test_amendments_without_evaluation_uses_aliases(transport):
+async def test_amendments_without_evaluation_uses_rpc_queue(transport):
+    # migration 0014: the anti-join moved into the queue_senza_valutazione RPC
+    # (the REST form with valutazioni() + is.null timed out, 57014, anon 3s)
     calls, responses = transport
     responses.append(
         FakeResp(
@@ -131,18 +133,8 @@ async def test_amendments_without_evaluation_uses_aliases(transport):
     )
     result = await supabase.amendments_without_evaluation(500)
     _, url, _, params = calls[0]
-    assert url.endswith("/rest/v1/emendamenti")
-    assert "legislature:legislatura" in params["select"]
-    assert "valutazioni()" in params["select"]
-    assert params["valutazioni"] == "is.null"
-    assert "valutazioni.id" not in params
-    assert params["corrente"] == "is.true"
-    assert params["testo"] == "not.is.null"
-    assert params["rilevante_spesa"] == "is.true"
-    assert "chamber:camera" in params["select"]
-    assert "relevant_spending:rilevante_spesa" in params["select"]
-    assert params["order"] == "data.desc.nullslast"
-    assert params["limit"] == "500"
+    assert url.endswith("/rest/v1/rpc/queue_senza_valutazione")
+    assert params == {"p_limit": "500"}
     assert result[0].id == "x" and result[0].legislature == 19 and result[0].bill == "Ddl 391"
 
 
