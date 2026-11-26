@@ -63,6 +63,7 @@ Zero dipendenze runtime: richiede Node 22+ (TypeScript nativo).
    - `supabase/migrations/0009_emendamenti_fonte_uri.sql` - indice su `emendamenti(fonte_uri)`: senza, il filtro per lista Camera in `db_emendamenti_by_fonte` va in statement timeout (57014) a tabella piena
    - `supabase/migrations/0010_idx_numero_padre.sql` - indice partial su `numero_padre` (filtri su subemendamenti senza statement timeout)
    - `supabase/migrations/0011_webapp_list_indexes.sql` - indici per le query della web app: `valutazioni(score_totale desc nulls last)` per l'ordinamento di default della lista, `valutazioni(ts)` per le stats, partial su `emendamenti(tipo)`/`(data desc)`, trigram GIN su `testo`/`ddl`/`numero`/`riepilogo` per la ricerca `ilike` (senza, caricamento pagina e ricerca vanno in statement timeout 57014 a tabella piena)
+   - `supabase/migrations/0012_count_covering_index.sql` - indice partial covering `emendamenti(id,tipo,camera,numero_padre) where corrente`: il conteggio `count=exact` di PostgREST (`pgrst_source_count` con `EXISTS`) fa probe index-only invece di heap fetch su `emendamenti_pkey`; con `statement_timeout=3s` del ruolo `anon` il count superava il timeout (57014) a ogni caricamento pagina
 3. Imposta le variabili d'ambiente `SUPABASE_URL` e `SUPABASE_KEY`
    (publishable/anon key; vedi `.env.example`).
 
