@@ -59,7 +59,34 @@ export function createStore(config) {
     if (hasParent && o.excludeSubs) p.push("emendamenti.numero_padre=is.null");
     return p;
   }
-  function searchOrClause(qs, excludeSubs) {
+  // Date sorts query emendamenti as ROOT (order=data.* on the root column uses the
+  // index with early stop; ordering by the embedded column forced a full join scan,
+  // ~11s -> statement timeout 57014 with anon 3s). Rows are flipped back to the
+  // valutazione shape the UI expects.
+  function selEmList() {
+    return "id,numero,tipo,ddl,data,url_testo" + emExtra() + ",valutazioni!inner(id,score_totale,riepilogo,modello,ts,punteggi(criterio,punteggio,motivazione))";
+  }
+  function emBaseParams(o) {
+    var p = ["select=" + selEmList(), "order=" + (o.sort === "data_asc" ? "data.asc.nullslast" : "data.desc.nullslast"), "limit=" + o.limit, "offset=" + o.offset];
+    if (hasCorrente) p.push("corrente=eq.true");
+    if (o.type !== "all") p.push("tipo=eq." + o.type);
+    if (hasChamber && o.chamber && o.chamber !== "all") p.push("camera=eq." + o.chamber);
+    if (hasParent && o.excludeSubs) p.push("numero_padre=is.null");
+    if (o.minScore > 0) p.push("valutazioni.score_totale=gte." + o.minScore);
+    return p;
+  }
+  function flipEmRows(rows) {
+    var out = [];
+    rows.forEach(function (r) {
+      var em = {};
+      for (var k in r) if (k !== "valutazioni") em[k] = r[k];
+      (r.valutazioni || []).forEach(function (v) {
+        out.push({ id: v.id, score_totale: v.score_totale, riepilogo: v.riepilogo, modello: v.modello, ts: v.ts, emendamenti: em, punteggi: v.punteggi || [] });
+      });
+    });
+    return out;
+  }
+  function searchIds(qs, excludeSubs) {
     var pat = "*" + qs + "*";
     var emOr = ["numero.ilike." + pat, "ddl.ilike." + pat, "testo.ilike." + pat];
     if (hasSignatories) emOr.push("firmatari.ilike." + pat);
@@ -69,12 +96,7 @@ export function createStore(config) {
     ]).then(function (rs) {
       var valIds = rs[0].data.map(function (r) { return r.id; });
       var emIds = rs[1].data.map(function (r) { return '"' + String(r.id).replace(/"/g, "") + '"'; });
-      var parts = [];
-      if (valIds.length) parts.push("id.in.(" + valIds.join(",") + ")");
-      if (emIds.length) parts.push("emendamento_id.in.(" + emIds.join(",") + ")");
-      // inner logic-tree clause only; the caller encodes it (ids may contain "#", which
-      // would truncate a raw query string at the fragment and break the logic tree)
-      return parts.length ? "(" + parts.join(",") + ")" : null;
+      return (valIds.length || emIds.length) ? { valIds: valIds, emIds: emIds } : null;
     });
   }
 
@@ -106,25 +128,37 @@ export function createStore(config) {
       });
     },
 
-    // o: { q, type, minScore, sort, offset, limit } -> { items, total }
+    // o: { q, type, chamber, minScore, excludeSubs, sort, offset, limit } -> { items, total }
     search: function (o) {
       var qs = sanitizeQuery(o.q);
-      var fetchPage = function (extra) {
-        var params = baseParams(o);
-        if (extra) params.push(extra);
-        return api("valutazioni?" + params.join("&"), true).then(function (r) {
-          return { items: r.data, total: r.total };
+      var byDate = o.sort === "data_desc" || o.sort === "data_asc";
+      var fetchPage = function (orClause) {
+        var params = byDate ? emBaseParams(o) : baseParams(o);
+        if (orClause) params.push("or=" + encodeURIComponent(orClause));
+        return api((byDate ? "emendamenti?" : "valutazioni?") + params.join("&"), true).then(function (r) {
+          return { items: byDate ? flipEmRows(r.data) : r.data, total: r.total };
         }).catch(function (err) {
           if (err && err.status === 416) return { items: [], total: null };
           throw err;
         });
       };
       if (!qs) return fetchPage(null);
-      return searchOrClause(qs, o.excludeSubs).catch(function () {
+      return searchIds(qs, o.excludeSubs).catch(function () {
         throw new Error("Ricerca non riuscita");
-      }).then(function (orClause) {
-        if (!orClause) return { items: [], total: 0 };
-        return fetchPage("or=" + encodeURIComponent(orClause));
+      }).then(function (ids) {
+        if (!ids) return { items: [], total: 0 };
+        // inner logic-tree clause only; the caller encodes it (ids may contain "#", which
+        // would truncate a raw query string at the fragment and break the logic tree)
+        var parts = [];
+        if (byDate) {
+          if (ids.emIds.length) parts.push("id.in.(" + ids.emIds.join(",") + ")");
+          if (ids.valIds.length) parts.push("valutazioni.id.in.(" + ids.valIds.join(",") + ")");
+        } else {
+          if (ids.valIds.length) parts.push("id.in.(" + ids.valIds.join(",") + ")");
+          if (ids.emIds.length) parts.push("emendamento_id.in.(" + ids.emIds.join(",") + ")");
+        }
+        if (!parts.length) return { items: [], total: 0 };
+        return fetchPage("(" + parts.join(",") + ")");
       });
     },
 
