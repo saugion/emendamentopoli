@@ -66,6 +66,7 @@ Zero dipendenze runtime: richiede Node 22+ (TypeScript nativo).
    - `supabase/migrations/0012_count_covering_index.sql` - indice partial covering `emendamenti(id,tipo,camera,numero_padre) where corrente`: il conteggio `count=exact` di PostgREST (`pgrst_source_count` con `EXISTS`) fa probe index-only invece di heap fetch su `emendamenti_pkey`; con `statement_timeout=3s` del ruolo `anon` il count superava il timeout (57014) a ogni caricamento pagina
    - `supabase/migrations/0013_eval_queue_index.sql` - indice partial `emendamenti(data desc nulls last) include (id) where corrente and rilevante_spesa and testo is not null` per la coda dei worker `amendments_without_evaluation`: scan index-only dei soli candidati (senza, seq scan + 18k sonde laterali ~8s -> 57014 con `statement_timeout=3s` del ruolo `anon`)
    - `supabase/migrations/0014_queue_senza_valutazione_rpc.sql` - funzione RPC `queue_senza_valutazione(p_limit)` usata dai worker al posto della query REST con anti-join `valutazioni=is.null` (LEFT JOIN LATERAL + heap per ogni candidato -> 57014): prima scan index-only + NOT EXISTS, poi fetch solo delle righe selezionate; colonne con gli alias inglesi del modello `Amendment`
+   - `supabase/migrations/0015_date_sort_covering_indexes.sql` - indici per l'ordinamento per data della lista: `emendamenti(data desc nulls last)` plain (early-stop senza filtri) + compositi `(camera, corrente, tipo, data asc/desc nulls last)` con INCLUDE delle colonne della vista lista (filtri index-only; senza, heap fetch per ~54k entry -> ~7s -> 57014 con `statement_timeout=3s` del ruolo `anon`)
 3. Imposta le variabili d'ambiente `SUPABASE_URL` e `SUPABASE_KEY`
    (publishable/anon key; vedi `.env.example`).
 
@@ -85,7 +86,7 @@ prototipo: da raffinare prima di un uso reale in produzione.
 - `supabase/migrations/0001_schema.sql` - schema del database
 - `supabase/migrations/0002_firmatari.sql` - colonna `firmatari` + indice trigram (pg_trgm)
 - `supabase/migrations/0003_firmatari_uri.sql` - colonna `firmatari_uri` (link al profilo senato.it dei firmatari)
-- `store.js` - modulo ES che possiede tutto l'accesso PostgREST della web app (`createStore({url, key})` -> `init`/`search`/`detail`/`stats`): headers, query building, sanitizzazione, content-range, mappatura errori, rilevamento colonne `firmatari`
+- `store.js` - modulo ES che possiede tutto l'accesso PostgREST della web app (`createStore({url, key})` -> `init`/`search`/`detail`/`stats`): headers, query building, sanitizzazione, content-range, mappatura errori, rilevamento colonne `firmatari`. Per gli ordinamenti per data (`data_asc`/`data_desc`) `search` interroga `emendamenti` come root con `valutazioni!inner` e `order=data.*` (colonna root -> indice + early stop; sulla colonna embedded faceva full scan ~11s -> 57014) e rimappa le righe nella forma `valutazione` attesa dalla UI
 - `index.html` - web app statica zero-dipendenze (usa `store.js` come modulo ES): esplora migliaia di emendamenti con ricerca full-text (testo/ddl/numero/riepilogo/firmatari), filtri per tipo e score, ordinamento, scroll infinito e pannello dettaglio con testo completo, firmatari con link al profilo su senato.it; tema chiaro/scuro; stato in URL (hash)
 - `tests/store.test.mjs` - test dello store con fetch stubbato (via `npm test`)
 

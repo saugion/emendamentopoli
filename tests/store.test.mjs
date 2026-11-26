@@ -70,11 +70,11 @@ test("search applies type filter, min score and sort", async () => {
   const { store, calls } = await makeStore((url) =>
     url.includes("/rest/v1/valutazioni?") ? jsonResponse([], { contentRange: "*/0" }) : okInit()
   );
-  await store.search({ q: "", type: "E", minScore: 7, sort: "data_asc", offset: 60, limit: 30 });
+  await store.search({ q: "", type: "E", minScore: 7, sort: "score_asc", offset: 60, limit: 30 });
   const url = calls[calls.length - 1].url;
   assert.ok(url.includes("score_totale=gte.7"));
   assert.ok(url.includes("emendamenti.tipo=eq.E"));
-  assert.ok(url.includes("order=emendamenti(data).asc.nullslast"));
+  assert.ok(url.includes("order=score_totale.asc.nullslast"));
   assert.ok(url.includes("offset=60"));
 });
 
@@ -305,4 +305,69 @@ test("without migration 0008 the excludeSubs param is never sent", async () => {
   globalThis.fetch = async (url, opts) => { calls.push(String(url)); return origFetch(url, opts); };
   await store.search({ q: "", type: "all", minScore: 0, excludeSubs: true, sort: "score_desc", offset: 0, limit: 30 });
   assert.ok(!calls[calls.length - 1].includes("numero_padre"));
+});
+
+test("date sorts query emendamenti as root and flip rows to the valutazione shape", async () => {
+  const { store, calls } = await makeStore((url) => {
+    if (url.includes("select=id,numero")) {
+      return jsonResponse([{
+        id: "camera:19:odg:9/03076/003#v1", numero: "9/03076/003", tipo: "E", ddl: "Ddl 3076",
+        data: "2026-11-20", url_testo: "u", firmatari: "Rossi", firmatari_uri: "", camera: "camera",
+        esito: null, numero_padre: null,
+        valutazioni: [{ id: 5, score_totale: 8.5, riepilogo: "r", modello: "m", ts: "2026-11-21T00:00:00Z", punteggi: [{ criterio: "salute", punteggio: 7, motivazione: "x" }] }]
+      }], { contentRange: "0-0/1" });
+    }
+    if (url.includes("/rest/v1/emendamenti?")) return okInit();
+    return jsonResponse([], { contentRange: "*/0" });
+  });
+  const r = await store.search({ q: "", type: "E", chamber: "camera", minScore: 7, excludeSubs: true, sort: "data_desc", offset: 60, limit: 30 });
+  const main = calls[calls.length - 1];
+  assert.ok(main.url.startsWith("https://x.supabase.co/rest/v1/emendamenti?"));
+  assert.ok(main.url.includes("order=data.desc.nullslast"));
+  assert.ok(main.url.includes("select=id,numero,tipo,ddl,data,url_testo,firmatari,firmatari_uri,camera,esito,numero_padre,valutazioni!inner(id,score_totale,riepilogo,modello,ts,punteggi(criterio,punteggio,motivazione))"));
+  assert.ok(main.url.includes("corrente=eq.true"));
+  assert.ok(main.url.includes("tipo=eq.E"));
+  assert.ok(main.url.includes("camera=eq.camera"));
+  assert.ok(main.url.includes("numero_padre=is.null"));
+  assert.ok(main.url.includes("valutazioni.score_totale=gte.7"));
+  assert.ok(main.url.includes("limit=30&offset=60"));
+  assert.ok(!main.url.includes("emendamenti.corrente"));
+  assert.equal(main.headers.Prefer, "count=exact");
+  assert.equal(r.total, 1);
+  assert.equal(r.items.length, 1);
+  assert.equal(r.items[0].id, 5);
+  assert.equal(r.items[0].score_totale, 8.5);
+  assert.equal(r.items[0].emendamenti.numero, "9/03076/003");
+  assert.equal(r.items[0].emendamenti.camera, "camera");
+  assert.deepEqual(r.items[0].punteggi, [{ criterio: "salute", punteggio: 7, motivazione: "x" }]);
+  assert.ok(!("valutazioni" in r.items[0].emendamenti));
+});
+
+test("data_asc uses data.asc.nullslast on the emendamenti root and omits unset filters", async () => {
+  const { store, calls } = await makeStore((url) =>
+    url.includes("select=id,numero") ? jsonResponse([], { contentRange: "*/0" }) : okInit()
+  );
+  await store.search({ q: "", type: "all", chamber: "all", minScore: 0, excludeSubs: false, sort: "data_asc", offset: 0, limit: 30 });
+  const main = calls[calls.length - 1];
+  assert.ok(main.url.startsWith("https://x.supabase.co/rest/v1/emendamenti?"));
+  assert.ok(main.url.includes("order=data.asc.nullslast"));
+  assert.ok(!main.url.includes("tipo=eq."));
+  assert.ok(!main.url.includes("camera=eq."));
+  assert.ok(!main.url.includes("numero_padre=is.null"));
+  assert.ok(!main.url.includes("score_totale=gte."));
+});
+
+test("search with q + date sort flips the or= clause onto the emendamenti root (no raw # in query)", async () => {
+  const { store, calls } = await makeStore((url) => {
+    if (url.includes("riepilogo.ilike")) return jsonResponse([{ id: 5 }]);
+    if (url.includes("/rest/v1/emendamenti?select=id&or=")) return jsonResponse([{ id: "camera:19:odg:9/02355/145#v1" }]);
+    return jsonResponse([], { contentRange: "*/0" });
+  });
+  await store.search({ q: "1100", type: "all", minScore: 0, sort: "data_desc", offset: 0, limit: 30 });
+  const main = calls[calls.length - 1];
+  assert.ok(main.url.startsWith("https://x.supabase.co/rest/v1/emendamenti?"));
+  const query = main.url.slice(main.url.indexOf("?") + 1);
+  assert.ok(!query.includes("#"), "raw # in query string would truncate it at the fragment");
+  assert.ok(query.includes("or=" + encodeURIComponent('(id.in.("camera:19:odg:9/02355/145#v1"),valutazioni.id.in.(5))')));
+  assert.ok(query.includes("%23v1"));
 });
