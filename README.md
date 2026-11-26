@@ -89,6 +89,19 @@ prototipo: da raffinare prima di un uso reale in produzione.
 - `index.html` - web app statica zero-dipendenze (usa `store.js` come modulo ES): esplora migliaia di emendamenti con ricerca full-text (testo/ddl/numero/riepilogo/firmatari), filtri per tipo e score, ordinamento, scroll infinito e pannello dettaglio con testo completo, firmatari con link al profilo su senato.it; tema chiaro/scuro; stato in URL (hash)
 - `tests/store.test.mjs` - test dello store con fetch stubbato (via `npm test`)
 
+## Volumi misurati
+
+Misurati su Supabase il 2026-11-26, a backfill completato:
+
+- **709 elenchi** emendamenti della Camera tracciati in `camera_liste_emendamenti`,
+  **98.343 righe di elenco** lette in totale (somma della colonna `righe` all'ultima risposta 200 di ciascun elenco)
+- **55.564 emendamenti** in `emendamenti`: **54.368 Camera** (di cui **47.716** versioni correnti) e 1.196 Senato; 48.901 correnti in totale
+- **3.225 atti** in `atti`
+- **18.452 valutazioni** con rubrica v2 (tutte con `impatto_finanziario` valorizzato; 986 sono legacy v1) e **77.732 righe** in `punteggi`
+- Backfill iniziale: ~20 run manuali di ingest in ~18h di loop; da allora ingest incrementale notturno
+  (Senato 02:00 UTC, Camera 04:05 / 04:40 / 06:45 UTC, vedi `scripts/mistral_schedules.sh`)
+- Campione stratificato per la validazione umana del filtro di rilevanza: `docs/validation/rilevanza_campione.csv` (200 righe) + `docs/validation/rilevanza_popolazione.json`
+
 ## Roadmap
 
 - [x] Persistenza (Supabase/PostgreSQL)
