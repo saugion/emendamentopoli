@@ -62,6 +62,7 @@ Zero dipendenze runtime: richiede Node 22+ (TypeScript nativo).
    - `supabase/migrations/0008_emendamento_padre.sql` - colonne `numero_padre` / `emendamento_padre_id` (link subemendamento -> emendamento padre) + backfill SQL dei record gia' esistenti (numero "X/N" -> padre "X", link via chiave_naturale); la web app mostra il badge "rif" e il link "scheda padre" nel dettaglio
    - `supabase/migrations/0009_emendamenti_fonte_uri.sql` - indice su `emendamenti(fonte_uri)`: senza, il filtro per lista Camera in `db_emendamenti_by_fonte` va in statement timeout (57014) a tabella piena
    - `supabase/migrations/0010_idx_numero_padre.sql` - indice partial su `numero_padre` (filtri su subemendamenti senza statement timeout)
+   - `supabase/migrations/0011_webapp_list_indexes.sql` - indici per le query della web app: `valutazioni(score_totale desc nulls last)` per l'ordinamento di default della lista, `valutazioni(ts)` per le stats, partial su `emendamenti(tipo)`/`(data desc)`, trigram GIN su `testo`/`ddl`/`numero`/`riepilogo` per la ricerca `ilike` (senza, caricamento pagina e ricerca vanno in statement timeout 57014 a tabella piena)
 3. Imposta le variabili d'ambiente `SUPABASE_URL` e `SUPABASE_KEY`
    (publishable/anon key; vedi `.env.example`).
 

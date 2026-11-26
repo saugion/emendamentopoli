@@ -1,0 +1,10 @@
+begin;
+drop index if exists idx_valutazioni_riepilogo_trgm;
+drop index if exists idx_emendamenti_numero_trgm;
+drop index if exists idx_emendamenti_ddl_trgm;
+drop index if exists idx_emendamenti_testo_trgm;
+drop index if exists idx_emendamenti_data_desc;
+drop index if exists idx_emendamenti_tipo_corrente;
+drop index if exists idx_valutazioni_ts;
+drop index if exists idx_valutazioni_score;
+commit;
