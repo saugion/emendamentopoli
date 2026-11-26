@@ -210,11 +210,9 @@ async def db_save_eme_rows(rows: list[dict]) -> None:
     base, key = source_supabase.supabase_base_and_key()
     async with httpx.AsyncClient(timeout=150.0, headers=source_supabase.supabase_headers(key)) as client:
         await source_supabase.upsert(client, "emendamenti", rows, "id")
-        await source_supabase.rpc(
-            client,
-            "ricalcola_versioni",
-            {"p_chiavi": sorted({r["chiave_naturale"] for r in rows})},
-        )
+        chiavi = sorted({r["chiave_naturale"] for r in rows if "chiave_naturale" in r})
+        if chiavi:
+            await source_supabase.rpc(client, "ricalcola_versioni", {"p_chiavi": chiavi})
 
 
 def list_row_hash(r) -> str:

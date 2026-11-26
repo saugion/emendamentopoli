@@ -66,7 +66,9 @@ def _wire_db(monkeypatch, fake: FakeSupabase):
 
     async def _save_rows(rows):
         fake.upsert_emendamenti(rows)
-        fake.rpc_ricalcola_versioni(sorted({r["chiave_naturale"] for r in rows}))
+        chiavi = sorted({r["chiave_naturale"] for r in rows if "chiave_naturale" in r})
+        if chiavi:
+            fake.rpc_ricalcola_versioni(chiavi)
 
     async def _atti_flags(legislature):
         return dict(fake.atti)
@@ -284,3 +286,31 @@ async def test_atti_for_discovery_pages_beyond_1000(monkeypatch):
     assert len(rows) == 2500
     assert [int(r.url.params["offset"]) for r in requests] == [0, 1000, 2000]
     assert [int(r.url.params["limit"]) for r in requests] == [1000, 1000, 500]
+
+
+async def test_db_save_eme_rows_esito_only_skips_rpc(monkeypatch):
+    # esito-only updates carry no chiave_naturale: upsert must go through and
+    # ricalcola_versioni must not be called (KeyError regression)
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_KEY", "test-key")
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(201, json=[])
+
+    with respx.mock(assert_all_called=False) as router:
+        router.post(url__regex=r"https://example\.supabase\.co/rest/v1/.+").mock(side_effect=handler)
+        await mod.db_save_eme_rows(
+            [
+                {
+                    "id": "camera:19:em:AC2715:com12ref:7.2.#20261001",
+                    "legislatura": 19,
+                    "esito": "Approvato",
+                    "metadati_hash": "abc",
+                    "aggiornato_at": "2026-11-26T01:51:00+00:00",
+                }
+            ]
+        )
+    assert len(requests) == 1
+    assert requests[0].url.path == "/rest/v1/emendamenti"
