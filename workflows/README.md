@@ -22,7 +22,7 @@ gli emendamenti del giorno prima e li salva su Supabase.
 - **Workflow**: `manutenzione-emendamenti` (ricalcolo `testo_hash` e filtro di rilevanza)
 - **Schedule Camera**: `camera-atti` `5 4 * * *` UTC, `camera-odg-giornalieri` `40 4 * * *` UTC, `camera-emendamenti-giornalieri` `45 6 * * *` UTC (dopo la fine massima possibile del job Senato delle 03:00 Europe/Rome, senza sovrapposizioni), create con `scripts/mistral_schedules.sh` (dopo i backfill); lo schedule Senato resta invariato
 - **Cortesia verso le fonti Camera**: user-agent `emendamentopoli-research/0.1`, 1 richiesta/s per host, concorrenza 2, retry 1/2/4/8 s su 403/429/5xx
-- **Volumi misurati**: <fill in with the numbers of §G.9 step 3: liste, righe>
+- **Volumi misurati** (2026-11-26, post-backfill): 709 liste Camera tracciate, 98.343 righe di elenco; 54.368 emendamenti Camera (47.716 correnti) + 1.196 Senato; 18.452 valutazioni v2
 - **Schedule**: ogni notte alle 03:00 `Europe/Rome` (cron `0 3 * * *`), creato via API/Studio sullo deployment `emendamentopoli`
 - **Secret**: il worker legge `SUPABASE_URL` e `SUPABASE_KEY`, bindati dai workspace secret `supabase_url` e `supabase_key` (da creare in Studio, mai in chiaro nel repo)
 
