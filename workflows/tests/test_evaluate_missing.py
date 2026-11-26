@@ -62,7 +62,9 @@ async def test_backfill_missing(monkeypatch) -> None:
     assert [v.amendment_id for v in EVALUATED] == ["http://dati.senato.it/emendamento/1"]
 
 
-async def test_missing_query_uses_anti_join(monkeypatch):
+async def test_missing_query_uses_rpc_queue(monkeypatch):
+    # migration 0014: anti-join and filters live in the queue_senza_valutazione RPC;
+    # the REST form (valutazioni() + is.null) timed out with 57014 (ruolo anon, 3s)
     import httpx
     import respx
 
@@ -71,16 +73,10 @@ async def test_missing_query_uses_anti_join(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
     monkeypatch.setenv("SUPABASE_KEY", "test-key")
     with respx.mock(assert_all_called=False) as router:
-        route = router.get("https://example.supabase.co/rest/v1/emendamenti").mock(
+        route = router.get("https://example.supabase.co/rest/v1/rpc/queue_senza_valutazione").mock(
             return_value=httpx.Response(200, json=[])
         )
         await supabase_mod.amendments_without_evaluation(500)
     params = route.calls[0].request.url.params
-    assert params["valutazioni"] == "is.null"
-    assert params["corrente"] == "is.true"
-    assert params["testo"] == "not.is.null"
-    assert params["rilevante_spesa"] == "is.true"
-    assert "valutazioni()" in params["select"]
-    assert "chamber:camera" in params["select"]
-    assert "relevant_spending:rilevante_spesa" in params["select"]
-    assert "valutazioni.id" not in params
+    assert params["p_limit"] == "500"
+    assert "select" not in params

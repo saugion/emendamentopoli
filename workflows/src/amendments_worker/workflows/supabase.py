@@ -145,21 +145,13 @@ async def insert_evaluations(evaluations: list["Evaluation"]) -> int:
 
 
 async def amendments_without_evaluation(limit: int) -> list[Amendment]:
-    # anti-join: select=...,valutazioni() + valutazioni=is.null (embedded filters like
-    # valutazioni.id=is.null do NOT filter the top-level rows; this form does)
+    # RPC (migration 0014): la forma REST con anti-join (select=...,valutazioni() +
+    # valutazioni=is.null) genera LEFT JOIN LATERAL + filtro IS NULL e il planner legge
+    # l'heap di ogni candidato -> statement timeout 57014 (ruolo anon, 3s). La funzione
+    # fa lo scan index-only dei soli candidati + NOT EXISTS e recupera solo le righe
+    # selezionate; restituisce le colonne con gli alias inglesi del modello Amendment.
     base, headers = _config()
-    params = {
-        "select": (
-            "id,legislature:legislatura,number:numero,type:tipo,committee_seat:sede_commissione,"
-            "act_uri:atto_uri,bill:ddl,text_url:url_testo,text_xml_url:url_testo_xml,date:data,text:testo"
-            ",chamber:camera,relevant_spending:rilevante_spesa,valutazioni()"
-        ),
-        "valutazioni": "is.null",
-        "corrente": "is.true",
-        "testo": "not.is.null",
-        "rilevante_spesa": "is.true",
-        "order": "data.desc.nullslast",
-        "limit": str(limit),
-    }
-    rows = await _get(base, headers, f"{base}/rest/v1/emendamenti", params)
+    rows = await _get(
+        base, headers, f"{base}/rest/v1/rpc/queue_senza_valutazione", {"p_limit": str(limit)}
+    )
     return [Amendment(**{k: r[k] for k in Amendment.model_fields if k in r}) for r in rows]
