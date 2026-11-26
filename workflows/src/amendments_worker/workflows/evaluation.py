@@ -139,19 +139,60 @@ def build_evaluation(eme: Amendment, parsed: EvaluationJSON) -> Evaluation:
     )
 
 
-async def _evaluate(eme: Amendment) -> Evaluation:
-    """Plain-function body of the evaluate_amendment activity (LLM call)."""
-    from mistralai.workflows.plugins.mistralai import get_mistral_client
-
-    client = get_mistral_client()
+async def _complete(client, messages: list[dict]) -> str:
     resp = await client.chat.complete_async(
         model=MODEL,
-        messages=[{"role": "user", "content": evaluation_prompt(eme)}],
+        messages=messages,
         response_format={"type": "json_object"},
         temperature=0.2,
     )
-    parsed = EvaluationJSON.model_validate_json(resp.choices[0].message.content)
-    return build_evaluation(eme, parsed)
+    return resp.choices[0].message.content
+
+
+def _repair_instruction(error: Exception, bad_content: str) -> str:
+    return (
+        "La risposta precedente non e' conforme allo schema JSON richiesto "
+        f"(errore: {error}).\nRisposta precedente:\n"
+        f'"""{bad_content[:2000]}"""\n\n'
+        "Rispondi SOLO con il JSON corretto e completo, con la struttura richiesta: "
+        '"punteggi" oggetto con una voce per criterio (trasparenza, salute, ambiente, concretezza), '
+        'ciascuna {"punteggio": numero 0-10, "motivazione": stringa}; "riepilogo" stringa; '
+        '"impatto_finanziario" oggetto {"punteggio": 0-10, "motivazione": stringa}; '
+        '"alloca_risorse" booleano; "importo_stimato_eur" numero o null.'
+    )
+
+
+async def _evaluate(eme: Amendment, complete=None) -> Evaluation:
+    """Plain-function body of the evaluate_amendment activity (LLM call).
+
+    Malformed JSON (a pydantic ValidationError, hence a ValueError) or a response missing
+    the mandatory rubric-v2 financial fields triggers one repair round-trip asking for the
+    corrected JSON; if it is still invalid the error raises and the activity retries.
+    `complete` is injectable for tests.
+    """
+    if complete is None:
+        from mistralai.workflows.plugins.mistralai import get_mistral_client
+
+        client = get_mistral_client()
+
+        async def _sdk_complete(messages: list[dict]) -> str:
+            return await _complete(client, messages)
+
+        complete = _sdk_complete
+    messages = [{"role": "user", "content": evaluation_prompt(eme)}]
+    for attempt in range(2):
+        content = await complete(messages)
+        try:
+            return build_evaluation(eme, EvaluationJSON.model_validate_json(content))
+        except ValueError as e:
+            if attempt:
+                raise
+            messages = [
+                *messages,
+                {"role": "assistant", "content": content},
+                {"role": "user", "content": _repair_instruction(e, content)},
+            ]
+    raise RuntimeError("unreachable")
 
 
 async def _save(evaluations: list[Evaluation]) -> int:

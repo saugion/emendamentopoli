@@ -191,3 +191,49 @@ def test_evaluation_row_has_financial_keys():
     assert row["importo_stimato_eur"] == 5000000.0
     assert row["motivazione_finanziaria"] == "stanzia risorse"
     assert row["rubrica_versione"] == 2
+
+
+async def test_evaluate_repairs_malformed_json_once():
+    from amendments_worker.workflows import evaluation as ev
+
+    bad = '{"punteggi": "non-oggetto", "riepilogo": {"testo": "no"}}'
+    calls = []
+
+    async def fake_complete(messages):
+        calls.append(messages)
+        return bad if len(calls) == 1 else V2_PAYLOAD
+
+    v = await ev._evaluate(_eme(), complete=fake_complete)
+    assert len(calls) == 2
+    assert calls[1][-2] == {"role": "assistant", "content": bad}
+    assert calls[1][-1]["role"] == "user" and "schema JSON" in calls[1][-1]["content"]
+    assert v.rubric_version == 2
+    assert v.financial_impact == 10.0
+
+
+async def test_evaluate_repairs_missing_financial_fields():
+    from amendments_worker.workflows import evaluation as ev
+
+    v1_only = (
+        '{"punteggi":{"trasparenza":{"punteggio":8,"motivazione":"a"},'
+        '"salute":{"punteggio":6,"motivazione":"b"},'
+        '"ambiente":{"punteggio":2,"motivazione":"c"},'
+        '"concretezza":{"punteggio":9,"motivazione":"d"}},"riepilogo":"ok"}'
+    )
+
+    async def fake_complete(messages):
+        return v1_only if len(messages) == 1 else V2_PAYLOAD
+
+    v = await ev._evaluate(_eme(), complete=fake_complete)
+    assert v.financial_impact == 10.0
+    assert v.allocates_resources is True
+
+
+async def test_evaluate_raises_when_repair_still_invalid():
+    from amendments_worker.workflows import evaluation as ev
+
+    async def fake_complete(messages):
+        return '{"punteggi": {}}'
+
+    with pytest.raises(ValueError):
+        await ev._evaluate(_eme(), complete=fake_complete)
